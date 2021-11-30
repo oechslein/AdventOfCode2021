@@ -1,51 +1,47 @@
+use image::{imageops::FilterType, ImageFormat};
+use std::path::PathBuf;
+
+fn julia() {
+    let imgx = 1600*20;
+    let imgy = 1600*20;
+
+    let scalex = 3.0 / imgx as f32;
+    let scaley = 3.0 / imgy as f32;
+
+    let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
+
+    for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
+        let r: u8 = (0.3 * x as f32) as u8;
+        let b: u8 = (0.3 * y as f32) as u8;
+        let cx = y as f32 * scalex - 1.5;
+        let cy = x as f32 * scaley - 1.5;
+
+        let c = num_complex::Complex::new(-0.4, 0.6);
+        let mut z = num_complex::Complex::new(cx, cy);
+
+        let mut g: u8 = 0;
+        while g < 255 && z.norm() <= 2.0 {
+            z = z * z + c;
+            g += 1;
+        }
+        *pixel = image::Rgb([r, g, b]);
+    }
+
+    imgbuf.save("fractal.png").unwrap();
+}
+
 fn main() {
-    
-    // Assign a reference of type `i32`. The `&` signifies there
-    // is a reference being assigned.
-    let reference: &i32 = &4;
-
-    match reference {
-        // If `reference` is pattern matched against `&val`, it results
-        // in a comparison like:
-        // `&i32`
-        // `&val`
-        // ^ We see that if the matching `&`s are dropped, then the `i32`
-        // should be assigned to `val`.
-        val => println!("Got a value via destructuring: {:?}", val),
-    }
-
-    // To avoid the `&`, you dereference before matching.
-    match *reference {
-        val => println!("Got a value via dereferencing: {:?}", val),
-    }
-
-    // What if you don't start with a reference? `reference` was a `&`
-    // because the right side was already a reference. This is not
-    // a reference because the right side is not one.
-    let _not_a_reference = 3;
-
-    // Rust provides `ref` for exactly this purpose. It modifies the
-    // assignment so that a reference is created for the element; this
-    // reference is assigned.
-    let ref _is_a_reference = 3;
-
-    // Accordingly, by defining 2 values without references, references
-    // can be retrieved via `ref` and `ref mut`.
-    let value = 5;
-    let mut mut_value = 6;
-
-    // Use `ref` keyword to create a reference.
-    match value {
-        ref r => println!("Got a reference to a value: {:?}", r),
-    }
-
-    // Use `ref mut` similarly.
-    match mut_value {
-        ref mut m => {
-            // Got a reference. Gotta dereference it before we can
-            // add anything to it.
-            *m += 10;
-            println!("We added 10. `mut_value`: {:?}", m);
-        },
+    julia();
+    for fname in std::env::args().skip(1) {
+        let src_path = PathBuf::from(&fname);
+        let mut thumb_path = PathBuf::from(&fname);
+        thumb_path.set_extension("thumbnail.jpg");
+        if src_path != thumb_path {
+            let src_img = image::open(&src_path).expect("Can't open input image.");
+            let src_img = image::imageops::resize(&src_img, 128, 128, FilterType::CatmullRom);
+            src_img
+                .save_with_format(&thumb_path, ImageFormat::Jpeg)
+                .unwrap();
+        }
     }
 }
