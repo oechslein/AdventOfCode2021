@@ -112,25 +112,24 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 /// The part1 function calculates the result for part1
-fn solve_part1(input: &[i32]) -> Result<i32, String> {
+fn solve_part1(input: &Vec<u32>) -> Result<u32, String> {
     let result = input
         .iter()
         //.map(|item| { println!("{:?}", item); item })
         .tuple_windows()
         .filter(|(prev_val, val)| prev_val < val)
         .count();
-    Ok(result as i32)
+    Ok(result as u32)
 }
 
 /// The part2 function calculates the result for part2
-fn solve_part2(input: &[i32]) -> Result<i32, String> {
-    let result = input
-        .windows(3)
-        .map(|window| window.iter().sum::<i32>())
-        .tuple_windows()
-        .filter(|(prev_val, val)| prev_val < val)
-        .count();
-    Ok(result as i32)
+fn solve_part2(input: &Vec<u32>) -> Result<u32, String> {
+    solve_part1(
+        &(input
+            .windows(3)
+            .map(|window| window.iter().sum::<u32>())
+            .collect()),
+    )
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -155,15 +154,11 @@ mod tests {
 
     #[bench]
     fn benchmark_part1(b: &mut Bencher) {
-        let file_name = "input.txt";
-        let input: Vec<i32> = utils::parse_input(utils::file_to_string(file_name));
-        b.iter(|| solve_part1(&input));
+        b.iter(|| solve_part1(&utils::parse_input(utils::file_to_string("input.txt"))));
     }
 
     #[bench]
     fn benchmark_part2(b: &mut Bencher) {
-        let file_name = "input.txt";
-        let input: Vec<i32> = utils::parse_input(utils::file_to_string(file_name));
-        b.iter(|| solve_part2(&input));
+        b.iter(|| solve_part2(&utils::parse_input(utils::file_to_string("input.txt"))));
     }
 }
