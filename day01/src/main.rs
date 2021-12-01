@@ -101,8 +101,12 @@ mod utils;
 /// The main function prints out the results for part1 and part2 of the day01
 /// AOC
 fn main() -> Result<(), Box<dyn error::Error>> {
-    utils::with_measure("Part 1", || solve_part1(&utils::get_input("input.txt")));
-    utils::with_measure("Part 2", || solve_part2(&utils::get_input("input.txt")));
+    utils::with_measure("Part 1", || {
+        solve_part1(&utils::parse_input(utils::file_to_string("input.txt")))
+    });
+    utils::with_measure("Part 2", || {
+        solve_part2(&utils::parse_input(utils::file_to_string("input.txt")))
+    });
     Ok(())
 }
 
@@ -111,6 +115,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 fn solve_part1(input: &[i32]) -> Result<i32, String> {
     let result = input
         .iter()
+        //.map(|item| { println!("{:?}", item); item })
         .tuple_windows()
         .filter(|(prev_val, val)| prev_val < val)
         .count();
@@ -132,31 +137,33 @@ fn solve_part2(input: &[i32]) -> Result<i32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::{file_to_string, get_input, parse_input};
+    use crate::utils::{file_to_string, parse_input};
 
     #[test]
     fn test1() -> Result<(), Box<dyn error::Error>> {
-        let input = parse_input(file_to_string("test.txt"));
+        let input = utils::parse_input(utils::file_to_string("test.txt"));
         assert_eq!(solve_part1(&input).unwrap(), 7);
         Ok(())
     }
 
     #[test]
     fn test2() -> Result<(), Box<dyn error::Error>> {
-        let input = parse_input(file_to_string("test.txt"));
+        let input = utils::parse_input(utils::file_to_string("test.txt"));
         assert_eq!(solve_part2(&input).unwrap(), 5);
         Ok(())
     }
 
     #[bench]
     fn benchmark_part1(b: &mut Bencher) {
-        let input: Vec<i32> = get_input();
+        let file_name = "input.txt";
+        let input: Vec<i32> = utils::parse_input(utils::file_to_string(file_name));
         b.iter(|| solve_part1(&input));
     }
 
     #[bench]
     fn benchmark_part2(b: &mut Bencher) {
-        let input: Vec<i32> = get_input();
+        let file_name = "input.txt";
+        let input: Vec<i32> = utils::parse_input(utils::file_to_string(file_name));
         b.iter(|| solve_part2(&input));
     }
 }
