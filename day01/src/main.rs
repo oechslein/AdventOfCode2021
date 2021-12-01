@@ -1,143 +1,155 @@
 #![crate_name = "day01"]
 
-//! ## --- Day 1: Report Repair ---
-//!
-//! After saving Christmas five years in a row, you've decided to take a vacation at a nice resort on a tropical island. Surely, Christmas will go on without you.
-//!
-//! The tropical island has its own currency and is entirely cash-only. The gold coins used there have a little picture of a starfish; the locals just call them stars. None of the currency exchanges seem to have heard of them, but somehow, you'll need to find fifty of these coins by the time you arrive so you can pay the deposit on your room.
-//!
-//! To save your vacation, you need to get all fifty stars by December 25th.
-//!
-//! Collect stars by solving puzzles. Two puzzles will be made available on each day in the Advent calendar; the second puzzle is unlocked when you complete the first. Each puzzle grants one star. Good luck!
-//!
-//! Before you leave, the Elves in accounting just need you to fix your expense report (your puzzle input); apparently, something isn't quite adding up.
-//!
-//! Specifically, they need you to find the two entries that sum to 2020 and then multiply those two numbers together.
-//!
-//! For example, suppose your expense report contained the following:
-//!
-//! ```
-//! 1721
-//! 979
-//! 366
-//! 299
-//! 675
-//! 1456
-//! ```
-//!
-//! In this list, the two entries that sum to 2020 are 1721 and 299. Multiplying them together produces 1721 \* 299 = 514579, so the correct answer is 514579.
-//!
-//! Of course, your expense report is much larger. Find the two entries that sum to 2020; what do you get if you multiply them together?
-//!
-//! Your puzzle answer was 538464.
-//!
-//! ## --- Part Two ---
-//!
-//! The Elves in accounting are thankful for your help; one of them even offers you a starfish coin they had left over from a past vacation. They offer you a second one if you can find three numbers in your expense report that meet the same criteria.
-//!
-//! Using the above example again, the three entries that sum to 2020 are 979, 366, and 675. Multiplying them together produces the answer, 241861950.
-//!
-//! In your expense report, what is the product of the three entries that sum to 2020?
-//!
-//! Your puzzle answer was 278783190.
+// --- Day 1: Sonar Sweep ---
+// You're minding your own business on a ship at sea when the overboard alarm goes off! You rush to see if you can help. Apparently, one of the Elves tripped and accidentally sent the sleigh keys flying into the ocean!
+// 
+// Before you know it, you're inside a submarine the Elves keep ready for situations like this. It's covered in Christmas lights (because of course it is), and it even has an experimental antenna that should be able to track the keys if you can boost its signal strength high enough; there's a little meter that indicates the antenna's signal strength by displaying 0-50 stars.
+// 
+// Your instincts tell you that in order to save Christmas, you'll need to get all fifty stars by December 25th.
+// 
+// Collect stars by solving puzzles. Two puzzles will be made available on each day in the Advent calendar; the second puzzle is unlocked when you complete the first. Each puzzle grants one star. Good luck!
+// 
+// As the submarine drops below the surface of the ocean, it automatically performs a sonar sweep of the nearby sea floor. On a small screen, the sonar sweep report (your puzzle input) appears: each line is a measurement of the sea floor depth as the sweep looks further and further away from the submarine.
+// 
+// For example, suppose you had the following report:
+// 
+// 199
+// 200
+// 208
+// 210
+// 200
+// 207
+// 240
+// 269
+// 260
+// 263
+// This report indicates that, scanning outward from the submarine, the sonar sweep found depths of 199, 200, 208, 210, and so on.
+// 
+// The first order of business is to figure out how quickly the depth increases, just so you know what you're dealing with - you never know if the keys will get carried into deeper water by an ocean current or a fish or something.
+// 
+// To do this, count the number of times a depth measurement increases from the previous measurement. (There is no measurement before the first measurement.) In the example above, the changes are as follows:
+// 
+// 199 (N/A - no previous measurement)
+// 200 (increased)
+// 208 (increased)
+// 210 (increased)
+// 200 (decreased)
+// 207 (increased)
+// 240 (increased)
+// 269 (increased)
+// 260 (decreased)
+// 263 (increased)
+// In this example, there are 7 measurements that are larger than the previous measurement.
+// 
+// How many measurements are larger than the previous measurement?
+// 
 
+
+// --- Part Two ---
+// Considering every single measurement isn't as useful as you expected: there's just too much noise in the data.
+// 
+// Instead, consider sums of a three-measurement sliding window. Again considering the above example:
+// 
+// 199  A      
+// 200  A B    
+// 208  A B C  
+// 210    B C D
+// 200  E   C D
+// 207  E F   D
+// 240  E F G  
+// 269    F G H
+// 260      G H
+// 263        H
+// Start by comparing the first and second three-measurement windows. The measurements in the first window are marked A (199, 200, 208); their sum is 199 + 200 + 208 = 607. The second window is marked B (200, 208, 210); its sum is 618. The sum of measurements in the second window is larger than the sum of the first, so this first comparison increased.
+// 
+// Your goal now is to count the number of times the sum of measurements in this sliding window increases from the previous sum. So, compare A with B, then compare B with C, then C with D, and so on. Stop when there aren't enough measurements left to create a new three-measurement sum.
+// 
+// In the above example, the sum of each three-measurement window is as follows:
+// 
+// A: 607 (N/A - no previous sum)
+// B: 618 (increased)
+// C: 618 (no change)
+// D: 617 (decreased)
+// E: 647 (increased)
+// F: 716 (increased)
+// G: 769 (increased)
+// H: 792 (increased)
+// In this example, there are 5 sums that are larger than the previous sum.
+// 
+// Consider sums of a three-measurement sliding window. How many sums are larger than the previous sum?
+
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_must_use)]
+
+#![feature(generators, generator_trait)]
+#![feature(test)]
+extern crate test;
+
+use std::time::{Duration, Instant};
+use std::error;
+use std::io;
+use std::path::Path;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs;
 
+use itertools::Itertools;
+
+use test::Bencher;
+
 /// The main function prints out the results for part1 and part2 of the day01
 /// AOC
-fn main() {
-    let contents = fs::read_to_string("input.txt").unwrap();
-    let input: Vec<i32> = contents
+fn main() -> Result<(), Box<dyn error::Error>> {
+    let start = Instant::now();
+    let input: Vec<i32> = get_input();
+    let duration = start.elapsed();
+    println!("Parsed, time elapsed is: {:?}\n", duration);
+
+    let start = Instant::now();
+    let res_pt1 = solve_part1(&input)?;
+    let duration = start.elapsed();
+
+    println!("Part 1 result: {} Time elapsed is: {:?}\n", res_pt1, duration);
+
+    let start = Instant::now();
+    let res_pt2 = solve_part2(&input)?;
+    let duration = start.elapsed();
+    println!("Part 2 result: {} Time elapsed is: {:?}\n", res_pt2, duration);
+    
+    Ok(())
+}
+
+fn parse_input(contents: String) -> Vec<i32> {
+    contents
         .split('\n')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
         .map(|n| n.parse::<i32>().unwrap())
-        .collect();
+        .collect()
+}
 
-    let res_pt1 = part1(&input).unwrap();
-    println!("Part 1 result: {}\n", res_pt1);
-
-    let res_pt2 = part2(&input).unwrap();
-    println!("Part 2 result: {}\n", res_pt2);
+fn get_input() -> Vec<i32> {
+    parse_input(fs::read_to_string("input.txt").unwrap())
 }
 
 /// The part1 function calculates the result for part1
-fn part1(input: &[i32]) -> Result<i32, String> {
-    let unique_inputs: HashSet<i32> = input.iter().cloned().collect();
-
-    // find compliment
-    for val in unique_inputs.iter() {
-        let compliment = 2020 - val;
-        if unique_inputs.contains(&compliment) {
-            println!("RESULT: {} + {} = 2020", compliment, val);
-            println!("\t{} x {} = {}", compliment, val, compliment * val);
-            return Ok(compliment * val);
-        }
-    }
-
-    Err(String::from("no result :(\n"))
+fn solve_part1(input: &[i32]) -> Result<i32, String> {
+    let result = input.iter()
+                .tuple_windows()
+                .filter(|(prev_val, val)| prev_val < val)
+                .count();
+    Ok(result as i32)
 }
 
 /// The part2 function calculates the result for part2
-fn part2(input: &[i32]) -> Result<i32, String> {
-    // clone and sort input
-    let mut input = input.to_owned();
-    input.sort_unstable();
-
-    // find 3 numbers that add up to 2020
-    // use 3 indices to track our place in the vec (2 on the left, 1 on the
-    // right)
-    let target = 2020;
-
-    let mut i1 = 0;
-    let mut i2 = 1;
-    let mut i3 = input.len() - 1;
-
-    loop {
-        let n1 = input[i1];
-        let n2 = input[i2];
-        let n3 = input[i3];
-
-        let sum = n1 + n2 + n3;
-
-        match sum.cmp(&target) {
-            // if the sum is less than the target, we want to increment one of
-            // the left indices to get a higher sum
-            Ordering::Less => {
-                if (i2 - i1) > 1 {
-                    i1 += 1;
-                } else {
-                    i2 += 1;
-                }
-
-                if !assert_indices_havent_crossed(i1, i2, i3) {
-                    return Err(String::from("no result :(\n"));
-                }
-            }
-
-            // if the sum is greater than the target, we want to decrement the
-            // right index to get a smaller number to lower our sum
-            Ordering::Greater => {
-                i3 -= 1;
-
-                if !assert_indices_havent_crossed(i1, i2, i3) {
-                    return Err(String::from("no result :(\n"));
-                }
-            }
-
-            // if the sum is equal, then we have found a result!!
-            Ordering::Equal => {
-                println!("RESULT: {} + {} + {} = {}", n1, n2, n3, target);
-                println!("\t{} x {} x {} = {}", n1, n2, n3, n1 * n2 * n3);
-                return Ok(n1 * n2 * n3);
-            }
-        }
-    }
-}
-
-/// utility function that helps to check index bounds
-fn assert_indices_havent_crossed(i1: usize, i2: usize, i3: usize) -> bool {
-    (i1 < i2) && (i2 < i3)
+fn solve_part2(input: &[i32]) -> Result<i32, String> {
+    let result = input.windows(3)
+                .map(|window| window.iter().sum::<i32>())
+                .tuple_windows()
+                .filter(|(prev_val, val)| prev_val < val)
+                .count();
+    Ok(result as i32)
 }
 
 #[cfg(test)]
@@ -145,18 +157,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_assert_indices_havent_crossed() {
-        assert!(assert_indices_havent_crossed(1, 2, 3));
-        assert!(assert_indices_havent_crossed(5, 6, 13));
-        assert!(assert_indices_havent_crossed(0, 2, 3));
-        assert!(assert_indices_havent_crossed(6, 1000, 1001));
+    fn test1() -> Result<(), Box<dyn error::Error>>{
+        let input = parse_input(String::from("199
+        200
+        208
+        210
+        200
+        207
+        240
+        269
+        260
+        263
+        "));
+        assert!(solve_part1(&input).unwrap() == 7);
+        Ok(())
     }
 
     #[test]
-    fn test_assert_indices_havent_crossed_fails() {
-        assert!(!assert_indices_havent_crossed(2, 2, 3));
-        assert!(!assert_indices_havent_crossed(1, 2, 2));
-        assert!(!assert_indices_havent_crossed(5, 3, 1));
-        assert!(!assert_indices_havent_crossed(1, 1, 1));
+    fn test2() -> Result<(), Box<dyn error::Error>>{
+        let input = parse_input(String::from("199
+        200
+        208
+        210
+        200
+        207
+        240
+        269
+        260
+        263
+        "));
+        assert!(solve_part2(&input).unwrap() == 5);
+        Ok(())
+    }
+
+    #[bench]
+    fn benchmark_part1(b: &mut Bencher) {
+        let input: Vec<i32> = get_input();
+        b.iter(|| solve_part1(&input) );
+    }
+
+    #[bench]
+    fn benchmark_part2(b: &mut Bencher) {
+        let input: Vec<i32> = get_input();
+        b.iter(|| solve_part2(&input) );
     }
 }
