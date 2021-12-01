@@ -98,6 +98,7 @@ use itertools::Itertools;
 
 use test::Bencher;
 
+////////////////////////////////////////////////////////////////////////////////////
 /// The main function prints out the results for part1 and part2 of the day01
 /// AOC
 fn main() -> Result<(), Box<dyn error::Error>> {
@@ -120,6 +121,8 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
+////////////////////////////////////////////////////////////////////////////////////
+/// Parse functions
 fn parse_input(contents: String) -> Vec<i32> {
     contents
         .split('\n')
@@ -133,6 +136,7 @@ fn get_input() -> Vec<i32> {
     parse_input(fs::read_to_string("input.txt").unwrap())
 }
 
+////////////////////////////////////////////////////////////////////////////////////
 /// The part1 function calculates the result for part1
 fn solve_part1(input: &[i32]) -> Result<i32, String> {
     let result = input.iter()
@@ -152,6 +156,7 @@ fn solve_part2(input: &[i32]) -> Result<i32, String> {
     Ok(result as i32)
 }
 
+////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
     use super::*;
