@@ -3,3 +3,4 @@ rust_by_example/fractal.png
 /_OLD
 target
 Cargo.lock
+.idea

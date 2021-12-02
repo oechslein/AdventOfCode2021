@@ -7,7 +7,6 @@
 //! in any language (you don't really need code at all to solve some of them)
 //! and its intended for people of all skill levels.
 
-
 fn main() {
     println!("Hello, world!");
 }
