@@ -78,7 +78,7 @@ use std::io;
 use std::ops::Sub;
 use std::path::Path;
 use std::time::{Duration, Instant};
-
+use std::str::FromStr;
 use itertools::Itertools;
 
 use test::Bencher;
@@ -98,20 +98,31 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
-type CommandArgumentType = i32;
+type NumberType = i32;
 
 #[derive(Debug)]
 enum Command {
-    Forward(CommandArgumentType, bool),
-    Up(CommandArgumentType, bool),
-    Down(CommandArgumentType, bool),
+    Forward(NumberType, bool),
+    Up(NumberType, bool),
+    Down(NumberType, bool),
+}
+
+impl Command {
+    fn parse_str(my_str: &str, argument: NumberType, part1: bool) -> Command {
+        match my_str {
+            "forward" => Command::Forward(argument, part1),
+            "up" => Command::Up(argument, part1),
+            "down" => Command::Down(argument, part1),
+            _ => panic!("Unknown input {:?}", my_str),
+        }
+    }
 }
 
 #[derive(Debug)]
 struct Submarine {
-    hor: i32,
-    depth: i32,
-    aim: i32,
+    hor: NumberType,
+    depth: NumberType,
+    aim: NumberType,
 }
 
 impl Submarine {
@@ -160,7 +171,7 @@ impl Submarine {
         };
     }
 
-    fn solve_it(&mut self, commands: Vec<Command>) -> i32 {
+    fn solve_it(&mut self, commands: Vec<Command>) -> NumberType {
         commands
             .into_iter()
             .for_each(|command| self.apply_command(command));
@@ -173,24 +184,18 @@ fn parse_input(input: &Vec<Vec<String>>, part1: bool) -> Vec<Command> {
     input
         .iter()
         .map(|x| {
-            let argument = x[1].parse::<CommandArgumentType>().unwrap();
-            match x[0].as_str() {
-                "forward" => Command::Forward(argument, part1),
-                "up" => Command::Up(argument, part1),
-                "down" => Command::Down(argument, part1),
-                _ => panic!("Unknown input {:?}", x),
-            }
+            Command::parse_str(x[0].as_str(), x[1].parse::<NumberType>().unwrap(), part1)
         })
         .collect()
 }
 
 /// The part1 function calculates the result for part1
-fn solve_part1(input: &Vec<Vec<String>>) -> Result<i32, String> {
+fn solve_part1(input: &Vec<Vec<String>>) -> Result<NumberType, String> {
     Ok(Submarine::new().solve_it(parse_input(input, true)))
 }
 
 /// The part2 function calculates the result for part2
-fn solve_part2(input: &Vec<Vec<String>>) -> Result<i32, String> {
+fn solve_part2(input: &Vec<Vec<String>>) -> Result<NumberType, String> {
     Ok(Submarine::new().solve_it(parse_input(input, false)))
 }
 
