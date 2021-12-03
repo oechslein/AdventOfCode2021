@@ -61,26 +61,34 @@ fn solve_part1(input: &[String]) -> Result<NumberType, String> {
     let mut result: NumberType = 0;
     for index in 0..binary_length_of_number {
         let value_half = 1 << (binary_length_of_number - index - 1);
+
+        //////////////////////////////////////////
+        // get from sorted vector the middle element
         //let x = vec_as_binary_to_string(&number_vec);
         number_vec.sort_unstable();
         // should be faster (O(n)), but isn't: number_vec.select_nth_unstable(middle_index);
         //let y = vec_as_binary_to_string(&number_vec);
         let number_middle = number_vec[middle_index];
+
+        //////////////////////////////////////////
+        // if first bit of middle element is 1, use it as leading bit for result
         if number_middle > /* 01...1 */ value_half-1 {
             // first bit is 1
-            result += 1 << (binary_length_of_number - index - 1);
+            result += value_half;
         } else {
             // first bit is 0
             // result = result;
         }
 
+        //////////////////////////////////////////
+        // remove leading bit for all numbers
         for number in number_vec.iter_mut() {
             *number &= /* 01...1 */ value_half-1;
         }
     }
 
     let gamma = result;
-    let epsilon = (!result) & ((1 << binary_length_of_number) - 1);
+    let epsilon = (!result) & ((1 << binary_length_of_number) - 1); // epsilon is just the inverted value
 
     Ok(gamma * epsilon)
 }
