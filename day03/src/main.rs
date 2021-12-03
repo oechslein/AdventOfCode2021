@@ -56,11 +56,11 @@ fn vec_as_binary_to_string(my_vec: &[NumberType]) -> String {
 fn solve_part1(input: &[String]) -> Result<NumberType, String> {
     let binary_length_of_number = input[0].len() as NumberType;
     let amount_of_numbers = input.len() as NumberType;
-    let middle_index= ((amount_of_numbers / 2) - 1) as usize;
+    let middle_index = ((amount_of_numbers / 2) - 1) as usize;
     let mut number_vec: Vec<NumberType> = convert(input);
     let mut result: NumberType = 0;
     for index in 0..binary_length_of_number {
-        let value_half = 1 << (binary_length_of_number-index-1);
+        let value_half = 1 << (binary_length_of_number - index - 1);
         //let x = vec_as_binary_to_string(&number_vec);
         number_vec.sort_unstable();
         // should be faster (O(n)), but isn't: number_vec.select_nth_unstable(middle_index);
@@ -68,7 +68,7 @@ fn solve_part1(input: &[String]) -> Result<NumberType, String> {
         let number_middle = number_vec[middle_index];
         if number_middle > /* 01...1 */ value_half-1 {
             // first bit is 1
-            result += 1 << (binary_length_of_number-index-1);
+            result += 1 << (binary_length_of_number - index - 1);
         } else {
             // first bit is 0
             // result = result;
@@ -80,7 +80,7 @@ fn solve_part1(input: &[String]) -> Result<NumberType, String> {
     }
 
     let gamma = result;
-    let epsilon = (!result) & ((1 << binary_length_of_number )- 1);
+    let epsilon = (!result) & ((1 << binary_length_of_number) - 1);
 
     Ok(gamma * epsilon)
 }
@@ -89,16 +89,16 @@ fn solve_part1(input: &[String]) -> Result<NumberType, String> {
 fn solve_part2(input: &[String]) -> Result<NumberType, String> {
     let binary_length_of_number = input[0].len() as NumberType;
     let amount_of_numbers = input.len() as NumberType;
-    let middle_index= ((amount_of_numbers / 2) - 1) as usize;
+    let middle_index = ((amount_of_numbers / 2) - 1) as usize;
     let mut number_vec: Vec<NumberType> = convert(input);
     let mut result: NumberType = 0;
     for index in 0..binary_length_of_number {
-        let value_half = 1 << (binary_length_of_number-index-1);
+        let value_half = 1 << (binary_length_of_number - index - 1);
         number_vec.select_nth_unstable(middle_index);
         let number_middle = number_vec[middle_index];
         if number_middle > /* 01...1 */ value_half-1 {
             // first bit is 1
-            result += 1 << (binary_length_of_number-index-1);
+            result += 1 << (binary_length_of_number - index - 1);
         } else {
             // first bit is 0
             // result = result;
@@ -107,11 +107,10 @@ fn solve_part2(input: &[String]) -> Result<NumberType, String> {
         for number in number_vec.iter_mut() {
             *number &= /* 01...1 */ value_half-1;
         }
-        
     }
 
     let gamma = result;
-    let epsilon = (!result) & ((1 << binary_length_of_number )- 1);
+    let epsilon = (!result) & ((1 << binary_length_of_number) - 1);
 
     Ok(gamma * epsilon)
 }
