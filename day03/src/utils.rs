@@ -21,24 +21,21 @@ where
         .collect()
 }
 
-pub fn parse_input2(contents: String) -> Vec<(String, u32)> {
+pub fn parse_input(contents: String) -> Vec<String> {
     contents
         .split('\n')
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
-        .map(|substring| {
-            let mylist: Vec<&str> = substring.split(' ').collect();
-            (String::from(mylist[0]), mylist[1].parse::<u32>().unwrap())
-        })
+        .map(String::from)
         .collect()
 }
 
-pub fn parse_input(contents: String) -> Vec<Vec<String>> {
+pub fn parse_input_vec_vecs(contents: String) -> Vec<Vec<String>> {
     contents
         .split('\n')
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
-        .map(|substring| substring.split(' ').map(|x| String::from(x)).collect())
+        .map(|substring| substring.split(' ').map(String::from).collect())
         .collect()
 }
 
