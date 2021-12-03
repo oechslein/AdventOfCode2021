@@ -110,11 +110,11 @@ fn has_more_ones(number_vec: &[NumberType], index: NumberType) -> Ordering {
     one_amount.cmp(&zero_amount)
 }
 
-fn calc_value(binary_length_of_number: NumberType, number_vec: Vec<NumberType>, need_ones: bool) -> NumberType {
+fn calc_value(binary_length_of_number: NumberType, number_vec: Vec<NumberType>, need_ones: bool) -> Result<NumberType, String> {
     let mut number_vec= number_vec;
     for bit_index in (0..binary_length_of_number).rev() {
             match has_more_ones(&number_vec, bit_index) {
-                Ordering::Greater => {
+                Ordering::Greater | Ordering::Equal => {
                     number_vec.drain_filter(|&mut number| {
                         need_ones != is_bit_on(number, bit_index)
                     });
@@ -124,26 +124,21 @@ fn calc_value(binary_length_of_number: NumberType, number_vec: Vec<NumberType>, 
                         need_ones == is_bit_on(number, bit_index)
                     });
                 }
-                Ordering::Equal => {
-                    number_vec.drain_filter(|&mut number| {
-                        need_ones != is_bit_on(number, bit_index)
-                    });
-                }
             }
 
         if number_vec.len() <= 1 {
-            break;
+            return Ok(number_vec[0]);
         }
     }
-    number_vec[0]
+    Err(String::from("Shouldn't happen :-)"))
 }
 
 /// The part2 function calculates the result for part2
 fn solve_part2(input: &[String]) -> Result<NumberType, String> {
     let binary_length_of_number = input[0].len() as NumberType;
 
-    let oxygen_generator_rating = calc_value(binary_length_of_number, convert(input), true);
-    let co2_scrubber_rating = calc_value(binary_length_of_number, convert(input), false);
+    let oxygen_generator_rating = calc_value(binary_length_of_number, convert(input), true)?;
+    let co2_scrubber_rating = calc_value(binary_length_of_number, convert(input), false)?;
 
     Ok(oxygen_generator_rating * co2_scrubber_rating)
 }
