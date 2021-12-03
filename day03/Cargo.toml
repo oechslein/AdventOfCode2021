@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.10.1"       # Extra iterator adaptors, iterator methods, free functions, and macros.
-lazy_static = "1.4.0"      # A macro for declaring lazily evaluated statics in Rust.
-regex = "1.5.4"            # An implementation of regular expressions for Rust. This implementation uses finite automata and g…
+#lazy_static = "1.4.0"      # A macro for declaring lazily evaluated statics in Rust.
+#regex = "1.5.4"            # An implementation of regular expressions for Rust. This implementation uses finite automata and g…
 # rand = "0.8.4"             # Random number generators and other randomness functionality.
 # 
 # num-complex = "0.4.0"      # complex numbers

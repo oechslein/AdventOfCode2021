@@ -69,17 +69,19 @@
 #![feature(test)]
 extern crate test;
 
+use itertools::Itertools;
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::error;
-use std::fmt::Debug;
+use std::fmt::{Debug, Error};
 use std::fs;
 use std::io;
 use std::ops::Sub;
 use std::path::Path;
-use std::time::{Duration, Instant};
 use std::str::FromStr;
-use itertools::Itertools;
+use std::time::{Duration, Instant};
 
 use test::Bencher;
 
@@ -109,11 +111,42 @@ enum Command {
 
 impl Command {
     fn parse_str(my_str: &str, argument: NumberType, part1: bool) -> Command {
+        let c = Command::from_str("forward 5");
         match my_str {
             "forward" => Command::Forward(argument, part1),
             "up" => Command::Up(argument, part1),
             "down" => Command::Down(argument, part1),
             _ => panic!("Unknown input {:?}", my_str),
+        }
+    }
+}
+
+impl FromStr for Command {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        lazy_static! {
+            static ref RE: Regex =
+                Regex::new(r"^(?P<command_str>[^ ]*) (?P<argument>\d*)$").unwrap();
+        }
+
+        let res = RE.captures(s);
+        let res2 = RE.captures(s).unwrap();
+
+        let command_str = res2.name("command_str").unwrap().as_str();
+        let argument: NumberType = res2
+            .name("argument")
+            .unwrap()
+            .as_str()
+            .parse::<NumberType>()
+            .unwrap();
+        let part1 = true;
+
+        match command_str {
+            "forward" => Ok(Command::Forward(argument, part1)),
+            "up" => Ok(Command::Up(argument, part1)),
+            "down" => Ok(Command::Down(argument, part1)),
+            _ => Err(format!("'{}' unknown direction", s)),
         }
     }
 }
@@ -183,9 +216,7 @@ impl Submarine {
 fn parse_input(input: &Vec<Vec<String>>, part1: bool) -> Vec<Command> {
     input
         .iter()
-        .map(|x| {
-            Command::parse_str(x[0].as_str(), x[1].parse::<NumberType>().unwrap(), part1)
-        })
+        .map(|x| Command::parse_str(x[0].as_str(), x[1].parse::<NumberType>().unwrap(), part1))
         .collect()
 }
 
