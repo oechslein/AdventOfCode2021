@@ -129,7 +129,7 @@ fn solve_part2(content: String) -> Result<NumberType, String> {
     for number_index in 0..numbers.len() {
         current_number_set.insert(numbers[number_index]);
         for (board_index, board) in boards.iter().enumerate() {
-            if board.boards_wins(&current_number_set) && !winning_boards.contains(&board_index) {
+            if !winning_boards.contains(&board_index) && board.boards_wins(&current_number_set){
                 winning_boards.insert(board_index);
                 if winning_boards.len() == boards.len() {
                     let curr_number = numbers[number_index];
