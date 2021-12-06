@@ -25,7 +25,8 @@ use counter::Counter;
 use itertools::Itertools;
 use test::Bencher;
 
-use ibig::{ibig, modular::ModuloRing, ubig, UBig};
+use num::bigint::{BigUint, ToBigUint};
+use num::Zero;
 
 #[macro_use]
 extern crate lazy_static;
@@ -43,19 +44,18 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-/*
-type NumberType = UBig;
+type NumberType = BigUint;
 
-fn _create_number(x: u64) -> NumberType {
-    ubig!(x)
+fn _create_number(num: u64) -> NumberType {
+    num.to_biguint().unwrap()
 }
-*/
 
+/*
 type NumberType = u64;
-
 fn _create_number(x: u64) -> NumberType {
     x
 }
+ */
 
 
 fn solve_it(content: String, max_days: u32) -> NumberType {
@@ -83,7 +83,7 @@ fn solve_it(content: String, max_days: u32) -> NumberType {
         pop[FISH_BREADING_CYCLE_TIME] += pop[YOUNG_FISH_BREADING_CYCLE_TIME].clone();
     }
 
-    pop.iter().sum()
+    pop.into_iter().reduce(|accum, item| accum + item).unwrap()
 }
 
 /// The part1 function calculates the result for part1
