@@ -90,33 +90,32 @@ impl Line {
         (self.from.x == self.to.x) || (self.from.y == self.to.y)
     }
 
-    fn all_covered_points(&self) -> Vec<Point> {
-        let mut all_covered_points = Vec::<Point>::new();
+    fn _get_increment(start: NumberType, end: &NumberType) -> i32 {
+        match start.cmp(&end) {
+            Ordering::Less => 1,
+            Ordering::Equal => 0,
+            Ordering::Greater => -1,
+        }
+    }
 
+    fn all_covered_points(&self) -> Vec<Point> {
         let mut x = self.from.x;
-        let x_inc = match self.from.x.cmp(&self.to.x) {
-            Ordering::Less => 1,
-            Ordering::Equal => 0,
-            Ordering::Greater => -1,
-        };
+        let x_inc = Self::_get_increment(self.from.x, &self.to.x);
         let mut y = self.from.y;
-        let y_inc = match self.from.y.cmp(&self.to.y) {
-            Ordering::Less => 1,
-            Ordering::Equal => 0,
-            Ordering::Greater => -1,
-        };
+        let y_inc = Self::_get_increment(self.from.y, &self.to.y);
+        let mut all_covered_points = vec![Point { x, y }];
         while (x != self.to.x) || (y != self.to.y) {
-            all_covered_points.push(Point { x, y });
             x += x_inc;
             y += y_inc;
+            all_covered_points.push(Point { x, y });
         }
-        all_covered_points.push(Point { x, y });
 
         //println!("point: {:?}", self);
         //println!("all_covered_points: {:?}", all_covered_points);
 
         all_covered_points
     }
+
 }
 
 /// The part1 function calculates the result for part1
