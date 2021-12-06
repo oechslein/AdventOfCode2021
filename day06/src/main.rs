@@ -4,6 +4,8 @@
 #![feature(generators, generator_trait)]
 #![feature(test)]
 #![feature(drain_filter)]
+#![feature(const_option)]
+
 extern crate test;
 
 use std::cmp::Ordering;
@@ -16,10 +18,15 @@ use std::ops::Sub;
 use std::path::Path;
 use std::str::{FromStr, Split};
 use std::time::{Duration, Instant};
+
+use num::Zero;
 use test::Bencher;
 use counter::Counter;
-
 use itertools::Itertools;
+use num::bigint::{BigUint,ToBigUint};
+
+#[macro_use]
+extern crate lazy_static;
 
 mod utils;
 
@@ -37,10 +44,15 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-type NumberType = u64;
+type NumberType = BigUint;
 type FishPopulationType = Counter<NumberType, NumberType>;
 
-fn solve_it(content: String, max_days: NumberType) -> NumberType {
+
+fn solve_it(content: String, max_days: u32) -> NumberType {
+    lazy_static! {
+        static ref AFTER_BREAD_LIFE_TIME: NumberType = 6.to_biguint().unwrap();
+        static ref NEW_FISH_LIFE_TIME: NumberType = 8.to_biguint().unwrap();
+    }
     let mut pop: FishPopulationType = content
     .split(",")
     .map(|n| n.trim().parse::<NumberType>().unwrap())
@@ -49,23 +61,23 @@ fn solve_it(content: String, max_days: NumberType) -> NumberType {
 
     for _day in 1..=max_days {
         let mut next_day_pop = FishPopulationType::new();
-        match pop.remove(&0) {
+        match pop.remove(&NumberType::zero()) {
             Some(breading_fish_amount) => {
-                next_day_pop[&6] += breading_fish_amount;
-                next_day_pop[&8] += breading_fish_amount;
+                next_day_pop[&AFTER_BREAD_LIFE_TIME] += &breading_fish_amount;
+                next_day_pop[&NEW_FISH_LIFE_TIME] += &breading_fish_amount;
             },
             None => {}
         };
         for (days_until_bread, frequency) in pop.into_iter() {
-            let days_until_bread_minus_one = (*days_until_bread)-1;
-            next_day_pop[&days_until_bread_minus_one] += *frequency;
+            let days_until_bread_minus_one = days_until_bread-1.to_biguint().unwrap();
+            next_day_pop[&days_until_bread_minus_one] += frequency;
         }
         //println!("day: {:?}, next_day_pop: {:?}", _day, next_day_pop);
 
         pop = next_day_pop;
     }
 
-   pop.iter().map(|(_, frequency)| *frequency).sum::<NumberType>() as NumberType
+   pop.iter().map(|(_, frequency)| frequency).sum::<NumberType>() as NumberType
 }
 
 /// The part1 function calculates the result for part1
@@ -75,7 +87,7 @@ fn solve_part1(content: String) -> Result<NumberType, String> {
 
 /// The part2 function calculates the result for part2
 fn solve_part2(content: String) -> Result<NumberType, String> {
-    Ok(solve_it(content, 256))
+    Ok(solve_it(content, 10_000_000))
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
