@@ -46,15 +46,23 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 type NumberType = i32;
 
+fn _parse_content(content: String) -> Vec::<NumberType> {
+    content.split(",").map(|n| n.trim().parse::<NumberType>().unwrap()).collect()
+}
+
+fn _part1_costs(positions: &[NumberType], goal_position: &NumberType) -> NumberType {
+    // cost function: 1 => 1, 2 => 3, 3 => 6, 4 => 10, 5 => 15, f(n) = sum_0..n(n) => f(n) => n(n+1)/2
+    positions.iter().map(|pos: &NumberType| (pos - goal_position).abs()).sum()
+}
+
 /// The part1 function calculates the result for part1
 fn solve_part1(content: String) -> Result<NumberType, String> {
-    let mut positions = content.split(",").map(|n| n.trim().parse::<NumberType>().unwrap()).collect::<Vec::<NumberType>>();
-
+    let mut positions = _parse_content(content);
     let middle_index = positions.len() / 2;
     positions.select_nth_unstable(middle_index);
     let median_position = positions[middle_index];
 
-    let result = positions.into_iter().map(|pos: NumberType| (pos - median_position).abs()).sum();
+    let result = _part1_costs(&positions, &median_position);
 
     Ok(result)
 }
@@ -69,11 +77,11 @@ fn _part2_costs(positions: &[NumberType], goal_position: &NumberType) -> NumberT
 
 /// The part2 function calculates the result for part2
 fn solve_part2(content: String) -> Result<NumberType, String> {
-    let positions = content.split(",").map(|n| n.trim().parse::<NumberType>().unwrap()).collect::<Vec::<NumberType>>();
+    let positions = _parse_content(content);
     let average_position: NumberType = positions.iter().sum::<NumberType>() / (positions.len() as NumberType);
-    let possible_average_positions = vec![average_position-1,average_position,average_position+1];
+    let possible_goal_positions = vec![average_position-1,average_position,average_position+1];
 
-    let result = possible_average_positions.iter().map(|goal_position| _part2_costs(&positions, goal_position)).min().unwrap();
+    let result = possible_goal_positions.iter().map(|goal_position| _part2_costs(&positions, goal_position)).min().unwrap();
 
     Ok(result)
 }
