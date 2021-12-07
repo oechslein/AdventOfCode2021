@@ -44,57 +44,38 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-type NumberType = BigUint;
-
-fn _create_number(num: u64) -> NumberType {
-    num.to_biguint().unwrap()
-}
-
-/*
-type NumberType = u64;
-fn _create_number(x: u64) -> NumberType {
-    x
-}
- */
-
-
-fn solve_it(content: String, max_days: u32) -> NumberType {
-    const YOUNG_FISH_BREADING_CYCLE_TIME: usize = 8;
-    const FISH_BREADING_CYCLE_TIME: usize = 6;
-    //let mut pop: [NumberType; YOUNG_FISH_BREADING_CYCLE_TIME+1] = [_create_number(0); YOUNG_FISH_BREADING_CYCLE_TIME];
-    let mut pop: [NumberType; YOUNG_FISH_BREADING_CYCLE_TIME + 1] =
-        itertools::repeat_n(_create_number(0), YOUNG_FISH_BREADING_CYCLE_TIME + 1)
-            .collect::<Vec<NumberType>>()
-            .try_into()
-            .unwrap();
-
-    content
-        .split(",")
-        .map(|n| n.trim().parse::<usize>().unwrap())
-        .for_each(|days_until_bread| {
-            pop[days_until_bread] += _create_number(1);
-        });
-
-    for _day in 1..=max_days {
-        for i in 1..=YOUNG_FISH_BREADING_CYCLE_TIME {
-            pop.swap(i - 1, i);
-        }
-        // pop[YOUNG_FISH_BREADING_CYCLE_TIME] has now the value from pop[0]!
-        pop[FISH_BREADING_CYCLE_TIME] += pop[YOUNG_FISH_BREADING_CYCLE_TIME].clone();
-    }
-
-    pop.into_iter().reduce(|accum, item| accum + item).unwrap()
-}
+type NumberType = i32;
 
 /// The part1 function calculates the result for part1
 fn solve_part1(content: String) -> Result<NumberType, String> {
-    Ok(solve_it(content, 80))
+    let mut positions = content.split(",").map(|n| n.trim().parse::<NumberType>().unwrap()).collect::<Vec::<NumberType>>();
+
+    let middle_index = positions.len() / 2;
+    positions.select_nth_unstable(middle_index);
+    let median_position = positions[middle_index];
+
+    let result = positions.into_iter().map(|pos: NumberType| (pos - median_position).abs()).sum();
+
+    Ok(result)
+}
+
+fn _part2_costs(positions: &[NumberType], goal_position: &NumberType) -> NumberType {
+    // cost function: 1 => 1, 2 => 3, 3 => 6, 4 => 10, 5 => 15, f(n) = sum_0..n(n) => f(n) => n(n+1)/2
+    positions.iter().map(|pos| {
+        let n = (pos - goal_position).abs() as f64;
+        (n*(n+1.0)/2.0).round() as NumberType
+    }).sum()
 }
 
 /// The part2 function calculates the result for part2
 fn solve_part2(content: String) -> Result<NumberType, String> {
-    //Ok(solve_it(content, 10_000_000))
-    Ok(solve_it(content, 256))
+    let positions = content.split(",").map(|n| n.trim().parse::<NumberType>().unwrap()).collect::<Vec::<NumberType>>();
+    let average_position: NumberType = positions.iter().sum::<NumberType>() / (positions.len() as NumberType);
+    let possible_average_positions = vec![average_position-1,average_position,average_position+1];
+
+    let result = possible_average_positions.iter().map(|goal_position| _part2_costs(&positions, goal_position)).min().unwrap();
+
+    Ok(result)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +89,7 @@ mod tests {
     fn test1() -> Result<(), Box<dyn error::Error>> {
         assert_eq!(
             solve_part1(utils::file_to_string("test.txt")).unwrap(),
-            _create_number(5934)
+            37
         );
         Ok(())
     }
@@ -117,7 +98,7 @@ mod tests {
     fn test2() -> Result<(), Box<dyn error::Error>> {
         assert_eq!(
             solve_part2(utils::file_to_string("test.txt")).unwrap(),
-            _create_number(26984457539)
+            168
         );
         Ok(())
     }
@@ -126,7 +107,7 @@ mod tests {
     fn verify1() -> Result<(), Box<dyn error::Error>> {
         assert_eq!(
             solve_part1(utils::file_to_string("input.txt")).unwrap(),
-            _create_number(362666)
+            344297
         );
         Ok(())
     }
@@ -135,7 +116,7 @@ mod tests {
     fn verify2() -> Result<(), Box<dyn error::Error>> {
         assert_eq!(
             solve_part2(utils::file_to_string("input.txt")).unwrap(),
-            _create_number(1640526601595)
+            97164301
         );
         Ok(())
     }
