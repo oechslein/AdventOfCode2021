@@ -57,7 +57,6 @@ fn _create_number(x: u64) -> NumberType {
 }
  */
 
-
 fn solve_it(content: String, max_days: u32) -> NumberType {
     const YOUNG_FISH_BREADING_CYCLE_TIME: usize = 8;
     const FISH_BREADING_CYCLE_TIME: usize = 6;
