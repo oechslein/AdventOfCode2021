@@ -14,6 +14,7 @@ use std::convert::TryInto;
 use std::error;
 use std::fmt::Debug;
 use std::fs;
+use std::hash::Hasher;
 use std::io;
 use std::mem;
 use std::ops::Sub;
@@ -25,9 +26,6 @@ use counter::Counter;
 use itertools::Itertools;
 use test::Bencher;
 
-use num::bigint::{BigUint, ToBigUint};
-use num::Zero;
-
 #[macro_use]
 extern crate lazy_static;
 
@@ -38,7 +36,7 @@ mod utils;
 /// AOC
 fn main() -> Result<(), Box<dyn error::Error>> {
     utils::with_measure("Part 1", || solve_part1(utils::file_to_string("input.txt")));
-    utils::with_measure("Part 2", || solve_part2(utils::file_to_string("input.txt")));
+    utils::with_measure("Part 2", || solve_part2(utils::file_to_string("test.txt")));
     Ok(())
 }
 
@@ -47,7 +45,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 type NumberType = usize;
 
 fn _parse_content(content: String) -> Vec<(Vec<String>, Vec<String>)> {
-    let mut content: Vec<(Vec<String>, Vec<String>)> = content
+    let content: Vec<(Vec<String>, Vec<String>)> = content
         .split("\r\n")
         .filter(|substr| !substr.is_empty())
         .map(|entry| {
@@ -81,7 +79,7 @@ enum Digit {
     FOUR = 4,
     FIVE = 5,
     SIX = 6,
-    SEVEN= 7 ,
+    SEVEN = 7,
     EIGHT = 8,
     NINE = 9,
 }
@@ -99,8 +97,8 @@ fn solve_part1(content: String) -> Result<NumberType, String> {
 
     let mut result = 0;
     for (all_number_samples, result_numbers) in _parse_content(content) {
-        println!("all_number_samples: {:?}", all_number_samples);
-        println!("result_numbers: {:?}", result_numbers);
+        //println!("all_number_samples: {:?}", all_number_samples);
+        //println!("result_numbers: {:?}", result_numbers);
 
         let mut sample_to_digit_map = HashMap::<String, Digit>::new();
 
@@ -120,7 +118,7 @@ fn solve_part1(content: String) -> Result<NumberType, String> {
             .into_iter()
             .filter(|result_number| sample_to_digit_map.contains_key(result_number))
             .count();
-        println!("easy_digits_amount: {:?}", easy_digits_amount);
+        //println!("easy_digits_amount: {:?}", easy_digits_amount);
 
         result += easy_digits_amount;
     }
@@ -147,39 +145,6 @@ b    .  b    .  .    c  b    c  b    c
 .    f  e    f  .    f  e    f  .    f
 .    f  e    f  .    f  e    f  .    f
  gggg    gggg    ....    gggg    gggg
-
-// amount of segments
-1: 2
-7: 3
-4: 4
-8: 7
-
-2: 5
-3: 5
-5: 5
-
-0: 6
-6: 6
-9: 6
-
-// identify:
-1+7 => a klar, c/f vertauschbar
-1+7+4 => a klar, c/f und b/d vertauschbar
-1+7+4+8 => (8 bringt nichts)
-0+8 => d klar (aber 0 nicht eindeutig identifizierbar)
-6+8 => c klar (aber 6 nicht eindeutig identifizierbar)
-
-mit allen möglichen mappings starten A=>(a,b,c,d,e,f,g) ...
-dann für eindeutige Zahlen aus mapping werfen zB für 1 C=>(c,f)/F=>(c,f)
-dafür braucht man
-1: {c, f}
-7: {a, c, f}
-Ich denke man bruacht noch die positionen (hat man mit den chars schon)
-
-
-
-2+3 => e+f klar, a/c/d/g nicht klar
-2+3+5 => e+f+b klar, a/c/d/g nicht klar
 */
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
@@ -193,160 +158,170 @@ enum Segment {
     G,
 }
 
-fn _get_digit(digit_to_segments_mapping: &HashMap<Digit, HashSet<Segment>>, number_sample_segments: HashSet<Segment> ) -> Option::<Digit> {
-    let mut digit_found = Option::<Digit>::None;
-    for (digit, digit_segments) in digit_to_segments_mapping.iter() {
-        if number_sample_segments.eq(digit_segments) {
-            assert!(digit_found.is_none());
-            digit_found = Some(*digit);
+impl FromStr for Segment {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() != 1 {
+            return Err(String::from("Too long"));
+        }
+        match s.chars().next().unwrap().to_ascii_uppercase() {
+            'A' => Ok(Segment::A),
+            'B' => Ok(Segment::B),
+            'C' => Ok(Segment::C),
+            'D' => Ok(Segment::D),
+            'E' => Ok(Segment::E),
+            'F' => Ok(Segment::F),
+            'G' => Ok(Segment::G),
+            _ => Err(String::from(format!("Unknown Segment '{}'", s))),
         }
     }
-    digit_found
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct SegmentList {
+    _segments: HashSet<Segment>,
+}
+
+impl std::hash::Hash for SegmentList {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let mut h: u64 = 0;
+
+        for elt in self._segments.iter() {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            elt.hash(&mut hasher);
+            h ^= hasher.finish();
+        }
+
+        state.write_u64(h);
+    }
+}
+
+impl FromIterator<Segment> for SegmentList {
+    fn from_iter<I: IntoIterator<Item = Segment>>(iter: I) -> SegmentList {
+        SegmentList {
+            _segments: HashSet::from_iter(iter),
+        }
+    }
+}
+
+impl FromStr for SegmentList {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let hash_set: HashSet<Segment> = HashSet::from_iter(
+            s.chars()
+                .map(|c| Segment::from_str(&(c.to_string())).unwrap()),
+        );
+        Ok(SegmentList {
+            _segments: hash_set,
+        })
+    }
+}
+
+fn _create_possible_segment_mappings() -> Vec<HashMap<char, Segment>> {
+    let mut possible_segment_mappings: Vec<HashMap<char, Segment>> = Vec::new();
+    for vec_samples in "abcdefg"
+        .to_uppercase()
+        .chars()
+        .permutations("abcdefg".len())
+    {
+        let all_segments = vec![
+            Segment::A,
+            Segment::B,
+            Segment::C,
+            Segment::D,
+            Segment::E,
+            Segment::F,
+            Segment::G,
+        ];
+        let possible_segment_mapping =
+            HashMap::from_iter(vec_samples.into_iter().zip(all_segments));
+        possible_segment_mappings.push(possible_segment_mapping);
+    }
+    possible_segment_mappings
+}
+
+lazy_static! {
+    static ref SEGMENTS_TO_DIGIT_MAPPING: HashMap<SegmentList, Digit> = HashMap::from([
+            (SegmentList::from_str("ABCEFG").unwrap(), Digit::ZERO),
+            (SegmentList::from_str("CF").unwrap(), Digit::ONE), // unique
+            (SegmentList::from_str("ACDEG").unwrap(), Digit::TWO),
+            (SegmentList::from_str("ACDFG").unwrap(), Digit::THREE),
+            (SegmentList::from_str("BCDF").unwrap(), Digit::FOUR), // unique
+            (SegmentList::from_str("ABDFG").unwrap(), Digit::FIVE),
+            (SegmentList::from_str("ABDEFG").unwrap(), Digit::SIX),
+            (SegmentList::from_str("ACF").unwrap(), Digit::SEVEN), // unique
+            (SegmentList::from_str("ABCDEFG").unwrap(), Digit::EIGHT), // unique
+            (SegmentList::from_str("ABCDFG").unwrap(), Digit::NINE),
+        ]);
+}
+
+fn filter_out_impossible_mappings(
+    number_sample: String,
+    possible_segment_mappings: Vec<HashMap<char, Segment>>,
+) -> Vec<HashMap<char, Segment>> {
+    //println!("number_sample: {:?}", number_sample);
+    let mut new_possible_segment_mappings: Vec<HashMap<char, Segment>> = Vec::new();
+    for possible_segment_mapping in possible_segment_mappings.iter() {
+        let number_sample_segments: SegmentList =
+            SegmentList::from_iter(number_sample.chars().map(|c| possible_segment_mapping[&c]));
+        match SEGMENTS_TO_DIGIT_MAPPING.get(&number_sample_segments) {
+            Some(_) => new_possible_segment_mappings.push(possible_segment_mapping.clone()),
+            None => {},
+        };
+    }
+    new_possible_segment_mappings
+}
+
+fn solve_part2_calc_number(result_numbers: Vec<String>, segment_mapping: &HashMap<char, Segment>) -> NumberType {
+    let mut line_result = 0;
+    for result_number in result_numbers.iter() {
+        let segments: SegmentList = result_number.chars().map(|c| segment_mapping[&c]).collect();
+        let digit_found = SEGMENTS_TO_DIGIT_MAPPING.get(&segments).unwrap();
+        line_result = line_result * 10 + (*digit_found) as NumberType;
+    }
+    line_result
+}
+
+fn solve_part2_entry(
+    all_number_samples: Vec<String>,
+    result_numbers: Vec<String>,
+    possible_segment_mappings: &Vec<HashMap<char, Segment>>,
+) -> NumberType {
+    //println!("all_number_samples: {:?}", all_number_samples);
+    //println!("result_numbers: {:?}", result_numbers);
+
+    let mut possible_segment_mappings = possible_segment_mappings.clone();
+    //println!("possible_segment_mappings: {:?}", possible_segment_mappings);
+
+    for number_sample in all_number_samples.into_iter() {
+        //println!("number_sample: {:?}", number_sample);
+        let new_possible_segment_mappings =
+            filter_out_impossible_mappings(number_sample, possible_segment_mappings);
+        //println!("Reduced possible mappings from {} to {}", possible_segment_mappings.len(), new_possible_segment_mappings.len());
+        assert!(!new_possible_segment_mappings.is_empty());
+        possible_segment_mappings = new_possible_segment_mappings;
+    }
+
+    // now we do have the possible mappings, hopefully it is just one
+    assert!(possible_segment_mappings.len() == 1);
+    solve_part2_calc_number(result_numbers, &(possible_segment_mappings[0]))
 }
 
 /// The part2 function calculates the result for part2
 fn solve_part2(content: String) -> Result<NumberType, String> {
-    let segment_amount_to_digits_map: HashMap<usize, Vec<Digit>> = HashMap::from([
-        (2, vec![Digit::ONE]),
-        (3, vec![Digit::SEVEN]),
-        (4, vec![Digit::FOUR]),
-        (7, vec![Digit::EIGHT]),
-        (5, vec![Digit::TWO, Digit::THREE, Digit::FIVE]),
-        (6, vec![Digit::ZERO, Digit::SIX, Digit::NINE]),
-    ]);
-
-    let digit_to_segments_mapping: HashMap<Digit, HashSet<Segment>> = HashMap::from([
-        (
-            Digit::ZERO,
-            HashSet::from([
-                Segment::A,
-                Segment::B,
-                Segment::C,
-                Segment::E,
-                Segment::F,
-                Segment::G,
-            ]),
-        ),
-        (Digit::ONE, HashSet::from([Segment::C, Segment::F])), // unique
-        (
-            Digit::TWO,
-            HashSet::from([Segment::A, Segment::C, Segment::D, Segment::E, Segment::G]),
-        ),
-        (
-            Digit::THREE,
-            HashSet::from([Segment::A, Segment::C, Segment::D, Segment::F, Segment::G]),
-        ),
-        (
-            Digit::FOUR,
-            HashSet::from([Segment::B, Segment::C, Segment::D, Segment::F]),
-        ), // unique
-        (
-            Digit::FIVE,
-            HashSet::from([Segment::A, Segment::B, Segment::D, Segment::F, Segment::G]),
-        ),
-        (
-            Digit::SIX,
-            HashSet::from([
-                Segment::A,
-                Segment::B,
-                Segment::D,
-                Segment::E,
-                Segment::F,
-                Segment::G,
-            ]),
-        ),
-        (
-            Digit::SEVEN,
-            HashSet::from([Segment::A, Segment::C, Segment::F]),
-        ), // unique
-        (
-            Digit::EIGHT,
-            HashSet::from([
-                Segment::A,
-                Segment::B,
-                Segment::C,
-                Segment::D,
-                Segment::E,
-                Segment::F,
-                Segment::G,
-            ]),
-        ), // unique
-        (
-            Digit::NINE,
-            HashSet::from([
-                Segment::A,
-                Segment::B,
-                Segment::C,
-                Segment::D,
-                Segment::F,
-                Segment::G,
-            ]),
-        ),
-    ]);
-
-    let mut result = 0;
-    for (all_number_samples, result_numbers) in _parse_content(content) {
-        println!("all_number_samples: {:?}", all_number_samples);
-        println!("result_numbers: {:?}", result_numbers);
-
-        /* size = n*(n-1)*(n-2)
-           [<(a-A),(b-B),(c-C), ...>,
-            <(a-B),(b-A),(c-C), ...>,
-           ]
-        */
-        let mut possible_segment_mappings: Vec<HashMap<char, Segment>> = Vec::new();
-        for vec_samples in "abcdefg".to_uppercase().chars().permutations("abcdefg".len()) {
-            let all_segments = vec![
-                Segment::A,
-                Segment::B,
-                Segment::C,
-                Segment::D,
-                Segment::E,
-                Segment::F,
-                Segment::G,
-            ];
-            let possible_segment_mapping =
-                HashMap::from_iter(vec_samples.into_iter().zip(all_segments));
-            possible_segment_mappings.push(possible_segment_mapping);
-        }
-        //println!("possible_segment_mappings: {:?}", possible_segment_mappings);
-
-        for number_sample in all_number_samples.into_iter() {
-            //println!("number_sample: {:?}", number_sample);
-            let mut new_possible_segment_mappings: Vec<HashMap<char, Segment>> = Vec::new();
-            for possible_segment_mapping in possible_segment_mappings.iter() {
-                let number_sample_segments: HashSet<Segment> =
-                    HashSet::from_iter(number_sample.chars().map(|c| possible_segment_mapping[&c]));
-                // / println!("number_sample_segments: {:?}", number_sample_segments);
-                // we now have one mapping e.g. <(a-B),(b-A),(c-C), ...>
-                // 1. Convert chars into Segments (based on mapping)
-                //    => list of Segments
-                // 2. Get unique! number for list of Segments (is unique since we do have a mapping)
-                // 3. Check if there is not contradication introduced (HOW?)
-                //    a) there is no corresponding digit found
-                //    b) there is a digit found that we already have a mapping for (not sure if that is possible?)
-
-                let digit_found = _get_digit(&digit_to_segments_mapping, number_sample_segments);
-                if digit_found.is_some() {
-                    new_possible_segment_mappings.push(possible_segment_mapping.clone());
-                }
-            }
-            //println!("Reduced possible mappings from {} to {}", possible_segment_mappings.len(), new_possible_segment_mappings.len());
-            assert!(!new_possible_segment_mappings.is_empty());
-            possible_segment_mappings = new_possible_segment_mappings;
-        }
-
-        // now we do have the possible mappings, hopefully it is just one
-        assert!(possible_segment_mappings.len() == 1);
-        let segment_mapping = &(possible_segment_mappings[0]);
-        let mut line_result = 0;
-        for result_number in result_numbers.iter() {
-            let segments: HashSet<Segment> = result_number.chars().map(|c| segment_mapping[&c]).collect();
-            let digit_found = _get_digit(&digit_to_segments_mapping, segments).unwrap();
-            line_result = line_result * 10 + digit_found as NumberType;
-        }
-        result += line_result;
-    }
+    let possible_segment_mappings = _create_possible_segment_mappings();
+    let result = _parse_content(content)
+        .into_iter()
+        .map(|(all_number_samples, result_numbers)| {
+            solve_part2_entry(
+                all_number_samples,
+                result_numbers,
+                &possible_segment_mappings,
+            )
+        })
+        .sum();
 
     Ok(result)
 }
@@ -366,7 +341,10 @@ mod tests {
 
     #[test]
     fn test2() -> Result<(), Box<dyn error::Error>> {
-        assert_eq!(solve_part2(utils::file_to_string("test.txt")).unwrap(), 61229);
+        assert_eq!(
+            solve_part2(utils::file_to_string("test.txt")).unwrap(),
+            61229
+        );
         Ok(())
     }
 
