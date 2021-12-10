@@ -1,10 +1,18 @@
 use std::fmt::Debug;
 use std::fs;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::time::Instant;
 
 /// Reads a file and return its content as a string
 pub fn file_to_string(file_name: &str) -> String {
     fs::read_to_string(file_name).unwrap()
+}
+
+pub fn file_to_lines(file_name: &str) -> impl Iterator<Item = String> + '_ {
+    BufReader::new(File::open(&file_name).unwrap())
+        .lines()
+        .map(|line| line.unwrap())
 }
 
 /// Splits given String, trim each lines, filters empty lines and parse each line into wished type
