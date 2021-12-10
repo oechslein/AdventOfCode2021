@@ -158,13 +158,13 @@ fn solve_part2(content: String) -> Result<NumberType, String> {
         let mut points_to_check: Vec<(usize, usize)> = vec![(deep_point_x, deep_point_y)];
         let mut visited_points: HashSet<(usize, usize)> = HashSet::new();
         while !points_to_check.is_empty() {
-            let (basin_x, basin_y) = points_to_check.pop().unwrap();
-            for (x, y, depth) in sea_floor.enumerate_neighbors(basin_x, basin_y) {
-                if !visited_points.contains(&(x, y)) {
-                    visited_points.insert((x, y));
+            let (x, y) = points_to_check.pop().unwrap();
+            for (neighbor_x, neighbor_y, depth) in sea_floor.enumerate_neighbors(x, y) {
+                if !visited_points.contains(&(neighbor_x, neighbor_y)) {
+                    visited_points.insert((neighbor_x, neighbor_y));
                     if *depth < 9 {
-                        points_to_check.push((x, y));
-                        basin.insert((x, y));
+                        points_to_check.push((neighbor_x, neighbor_y));
+                        basin.insert((neighbor_x, neighbor_y));
                     }
                 }
             }
@@ -172,8 +172,9 @@ fn solve_part2(content: String) -> Result<NumberType, String> {
         all_basins.push(basin);
     }
     let mut result = 1;
+    let max_basin_size = all_basins.iter().map(|basin|basin.len()).max().unwrap();
     for nth in 0..3 {
-        all_basins.select_nth_unstable_by_key(nth, |basin| 99999 - basin.len());
+        all_basins.select_nth_unstable_by_key(nth, |basin| max_basin_size - basin.len());
         result *= all_basins[nth].len();
     }
 
