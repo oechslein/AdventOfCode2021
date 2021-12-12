@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::error;
 use std::fmt;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
 use std::io;
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum Node {
     Start,
     End,
@@ -67,6 +67,21 @@ impl FromStr for Node {
     }
 }
 
+impl fmt::Display for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let elem =
+            match self {
+                Node::Start => {"start"}
+                Node::End => {"end"}
+                Node::BigCave(s) => {s.as_str()}
+                Node::SmallCave(s) => {s.as_str()}
+            };
+        write!(f, "{}", elem)
+    }
+}
+
+type NodePath<'a> = Vec<&'a Node>;
+
 #[derive(Debug)]
 struct Edge {
     from: Box<Node>,
@@ -79,6 +94,15 @@ struct UndirectedGraph {
 }
 
 impl UndirectedGraph {
+    fn _parse_content(file_name: &str) -> UndirectedGraph {
+        let mut g = UndirectedGraph::new();
+        for line in utils::file_to_lines(file_name) {
+            let (from_str, to_str) = line.split('-').collect_tuple().unwrap();
+            g.add_edge(Node::from_str(from_str).unwrap(), Node::from_str(to_str).unwrap())
+        }
+        g
+    }
+
     fn new() -> UndirectedGraph {
         let edges = Vec::<Edge>::new();
         UndirectedGraph { edges }
@@ -112,60 +136,51 @@ impl UndirectedGraph {
         }
         nodes
     }
-}
 
-fn _parse_content(file_name: &str) -> UndirectedGraph {
-    let mut g = UndirectedGraph::new();
-    for line in utils::file_to_lines(file_name) {
-        let (from_str, to_str) = line.split('-').collect_tuple().unwrap();
-        g.add_edge(Node::from_str(from_str).unwrap(), Node::from_str(to_str).unwrap())
-    }
-    g
-}
+    fn search_valid_pathes(&self, is_invalid_fn: fn(&NodePath) -> bool) -> Vec<NodePath> {
+        let start_node = &Node::Start;
+        let goal_node = &Node::End;
 
-fn search_valid_pathes(g: &UndirectedGraph, is_invalid_fn: fn(&Vec<&Node>) -> bool) -> Vec<Vec<&Node>> {
-    let start_node = &Node::Start;
-    let goal_node = &Node::End;
+        let mut all_pathes: Vec<NodePath> = Vec::new();
+        let mut queue: Vec<NodePath> = Vec::new();
+        queue.push(vec![start_node]);
 
-    let mut all_pathes: Vec<Vec<&Node>> = Vec::new();
-    let mut queue: Vec<Vec<&Node>> = Vec::new();
-    queue.push(vec![start_node]);
+        while !queue.is_empty() {
+            let curr_path = queue.pop().unwrap();
+            let curr_node = *curr_path.last().unwrap();
+            //println!("Removed from queue {:?}", curr_path);
 
-    while !queue.is_empty() {
-        let curr_path = queue.pop().unwrap();
-        let curr_node = *curr_path.last().unwrap();
-        //println!("Removed from queue {:?}", curr_path);
-
-        if curr_node == goal_node {
-            //println!("Found {:?}", curr_path);
-            all_pathes.push(curr_path);
-        } else {
-            for child_node in g.get_nodes_from(&curr_node) {
-                let mut new_path = curr_path.clone();
-                new_path.push(child_node);
-                if !is_invalid_fn(&new_path) {
-                    //println!("Added to queue {:?}", new_path);
-                    queue.push(new_path);
-                } else {
-                    //println!("Excluded {:?}", new_path);
+            if curr_node == goal_node {
+                //println!("Found {:?}", curr_path);
+                all_pathes.push(curr_path);
+            } else {
+                for child_node in &self.get_nodes_from(&curr_node) {
+                    let mut new_path = curr_path.clone();
+                    new_path.push(child_node);
+                    if !is_invalid_fn(&new_path) {
+                        //println!("Added to queue {:?}", new_path);
+                        queue.push(new_path);
+                    } else {
+                        //println!("Excluded {:?}", new_path);
+                    }
                 }
             }
         }
+        all_pathes
     }
-    all_pathes
 }
 
-fn path_nok_part1(new_path: &Vec<&Node>) -> bool {
+fn path_nok_part1(new_path: &NodePath) -> bool {
     let (start_count, how_many_above_1, _) = get_path_metrics(new_path);
     return start_count > 1 || how_many_above_1 != 0;
 }
 
-fn path_nok_part2(new_path: &Vec<&Node>) -> bool {
+fn path_nok_part2(new_path: &NodePath) -> bool {
     let (start_count, how_many_above_1, how_many_above_2) = get_path_metrics(new_path);
     start_count > 1 || how_many_above_1 > 1 || how_many_above_2 != 0
 }
 
-fn get_path_metrics(new_path: &Vec<&Node>) -> (i32, usize, usize) {
+fn get_path_metrics(new_path: &NodePath) -> (i32, usize, usize) {
     let mut counter: Counter<&String, usize> = Counter::new();
     let mut start_count = 0;
     for node in new_path.iter() {
@@ -185,27 +200,38 @@ fn get_path_metrics(new_path: &Vec<&Node>) -> (i32, usize, usize) {
     (start_count, how_many_above_1, how_many_above_2)
 }
 
+fn print_pathnodes(all_pathes: &Vec<NodePath>) {
+    for path in all_pathes.iter().sorted() {
+        for node in path {
+            print!("{},", node);
+        }
+        println!();
+    }
+}
+
+
 /// The part1 function calculates the result for part2
 fn solve_part1(file_name: &str) -> Result<usize, String> {
-    let g = _parse_content(file_name);
+    let g = UndirectedGraph::_parse_content(file_name);
     //println!("g: {:?}", g);
 
-    let all_pathes = search_valid_pathes(&g, path_nok_part1);
-    //println!("all_pathes: {:?}", all_pathes);
+    let all_pathes = g.search_valid_pathes(path_nok_part1);
+    //print_pathnodes(&all_pathes);
 
     Ok(all_pathes.len())
 }
 
 /// The part2 function calculates the result for part2
 fn solve_part2(file_name: &str) -> Result<usize, String> {
-    let g = _parse_content(file_name);
+    let g = UndirectedGraph::_parse_content(file_name);
     //println!("g: {:?}", g);
 
-    let all_pathes = search_valid_pathes(&g, path_nok_part2);
-    //println!("all_pathes: {:?}", all_pathes);
+    let all_pathes = g.search_valid_pathes(path_nok_part2);
+    //print_pathnodes(&all_pathes);
 
     Ok(all_pathes.len())
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
