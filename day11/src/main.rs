@@ -233,7 +233,9 @@ fn solve_part1(file_name: &str) -> Result<usize, String> {
 
 /// The part2 function calculates the result for part2
 fn solve_part2(file_name: &str) -> Result<usize, String> {
-    let steps = _parse_content(file_name).steps_until_flashed();
+    let mut world = _parse_content(file_name);
+    let steps = world.steps_until_flashed();
+
     Ok(steps)
 }
 
