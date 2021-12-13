@@ -49,80 +49,103 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 type DotsType = Vec<(usize, usize)>;
 type FoldingsType = Vec<(char, usize)>;
 
-fn _parse_content(file_name: &str) -> (DotsType, FoldingsType) {
-    let content = fs::read_to_string(file_name).unwrap();
-    let (dots_content, folds_content) = content.split("\r\n\r\n").collect_tuple().unwrap();
-
-    let dots = dots_content
-        .split("\r\n")
-        .map(|line| {
-            line.split(',')
-                .map(|sub_line| sub_line.parse::<usize>().unwrap())
-                .collect_tuple()
-                .unwrap()
-        })
-        .collect::<DotsType>();
-
-    let folds = folds_content
-        .split("\r\n")
-        .map(|line| {
-            let line = line.to_string().replace("fold along ", "");
-            let (axis, position) = line.split('=').collect_tuple().unwrap();
-            let axis_char = axis.chars().next().unwrap();
-            let fold_position = position.parse::<usize>().unwrap();
-            (axis_char, fold_position)
-        })
-        .collect::<FoldingsType>();
-
-    (dots, folds)
+struct FoldProblem {
+    dots: DotsType,
+    folds: FoldingsType,
 }
 
-fn print_dots(dots: &DotsType) {
-    let max_x = dots.iter().map(|(dot_x, _)| dot_x).max().unwrap();
-    let max_y = dots.iter().map(|(_, dot_y)| dot_y).max().unwrap();
-    for y in 0..=*max_y {
-        for x in 0..=*max_x {
-            if dots.contains(&(x, y)) {
-                print!("#");
-            } else {
-                print!(".");
-            }
-        }
-        println!();
+impl FromStr for FoldProblem {
+    type Err = String;
+
+    fn from_str(content: &str) -> Result<Self, Self::Err> {
+        let (dots_content, folds_content) = content.split("\r\n\r\n").collect_tuple().unwrap();
+
+        let dots = dots_content
+            .split("\r\n")
+            .map(|line| {
+                line.split(',')
+                    .map(|sub_line| sub_line.parse::<usize>().unwrap())
+                    .collect_tuple()
+                    .unwrap()
+            })
+            .collect::<DotsType>();
+
+        let folds = folds_content
+            .split("\r\n")
+            .map(|line| {
+                let line = line.to_string().replace("fold along ", "");
+                let (axis, position) = line.split('=').collect_tuple().unwrap();
+                let axis_char = axis.chars().next().unwrap();
+                let fold_position = position.parse::<usize>().unwrap();
+                (axis_char, fold_position)
+            })
+            .collect::<FoldingsType>();
+
+        Ok(FoldProblem {
+            dots: dots,
+            folds: folds,
+        })
     }
 }
 
-fn fold_all(dots: &mut DotsType, folds: &FoldingsType) {
-    let mut index = 0;
-    'outer: while index < dots.len() {
-        let dot = &mut dots[index];
-        for (fold_axis, fold_pos) in folds.iter() {
-            if *fold_axis == 'y' {
-                if dot.1 < *fold_pos {
-                    // place doesn't change
-                } else if dot.1 == *fold_pos {
-                    dots.remove(index);
-                    continue 'outer; // break + skip index += 1
-                } else {
-                    // dot_y > *fold_pos
-                    dot.1 = 2 * fold_pos - dot.1;
-                }
+impl FoldProblem {
+    fn apply_foldings_to_dot(&mut self, index: usize) -> bool {
+        let dot = &mut self.dots[index];
+        for (fold_axis, fold_pos) in self.folds.iter() {
+            let dot_coor_ref: &mut usize;
+            if *fold_axis == 'x' {
+                dot_coor_ref = &mut dot.0;
             } else {
-                assert_eq!(*fold_axis, 'x');
-                if dot.0 < *fold_pos {
-                    // place doesn't change
-                } else if dot.0 == *fold_pos {
-                    dots.remove(index);
-                    continue 'outer; // break + skip index += 1
-                } else {
-                    // dot_x > *fold_pos
-                    dot.0 = 2 * fold_pos - dot.0;
+                assert_eq!(*fold_axis, 'y');
+                dot_coor_ref = &mut dot.1;
+            }
+
+            let dot_corr = *dot_coor_ref;
+            match (dot_corr).cmp(fold_pos) {
+                Ordering::Less => {}
+                Ordering::Equal => {
+                    // Break from for loop, indicating that item needs to be removed
+                    return false; 
+                }
+                Ordering::Greater => {
+                    *dot_coor_ref = 2 * fold_pos - dot_corr;
                 }
             }
         }
-
-        index += 1;
+        return true;
     }
+
+    fn apply_foldings(&mut self) {
+        let mut index = 0;
+        while index < self.dots.len() {
+            if !self.apply_foldings_to_dot(index) {
+                self.dots.remove(index);
+                // skip index += 1, since we removed current item
+            } else {
+                index += 1;
+            }
+        }
+    }
+
+    fn get_unique_dots_count(&self) -> usize {
+        self.dots.iter().collect::<HashSet<_>>().len()
+    }
+
+    fn print_dots(&self) {
+        let dots: &DotsType = &self.dots;
+        let max_x = dots.iter().map(|(dot_x, _)| dot_x).max().unwrap();
+        let max_y = dots.iter().map(|(_, dot_y)| dot_y).max().unwrap();
+        for y in 0..=*max_y {
+            for x in 0..=*max_x {
+                if dots.contains(&(x, y)) {
+                    print!("#");
+                } else {
+                    print!(".");
+                }
+            }
+            println!();
+        }
+    }    
 }
 
 /// The part1 function calculates the result for part2
@@ -137,32 +160,30 @@ fn solve_part1(file_name: &str) -> Result<usize, String> {
     //
     // all folds can be done per position!
 
-    let (mut dots, folds) = _parse_content(file_name);
+    let mut fold_problem =
+        FoldProblem::from_str(utils::file_to_string(file_name).as_str()).unwrap();
     //println!("folds: {:?}", folds);
-    //print_dots(&dots);
+    //fold_problem.print_dots();
 
     // just first fold
-    fold_all(&mut dots, &vec![folds[0]]);
-    //print_dots(&dots);
+    fold_problem.folds = vec![fold_problem.folds[0]];
+    fold_problem.apply_foldings();
+    //fold_problem.print_dots();
 
-    Ok(dots.iter().collect::<HashSet<_>>().len())
+    Ok(fold_problem.get_unique_dots_count())
 }
 
 /// The part2 function calculates the result for part2
 fn solve_part2(file_name: &str) -> Result<usize, String> {
-    let (mut dots, folds) = _parse_content(file_name);
+    let mut fold_problem =
+        FoldProblem::from_str(utils::file_to_string(file_name).as_str()).unwrap();
     //println!("folds: {:?}", folds);
-    //print_dots(&dots);
+    //fold_problem.print_dots();
 
-    /*
-    for (fold_axis, fold_pos) in folds {
-        dots = fold(dots, fold_axis, fold_pos);
-    }
-    */
-    fold_all(&mut dots, &folds);
+    fold_problem.apply_foldings();
+    fold_problem.print_dots();
 
-    print_dots(&dots);
-    Ok(dots.iter().collect::<HashSet<_>>().len())
+    Ok(fold_problem.get_unique_dots_count())
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
