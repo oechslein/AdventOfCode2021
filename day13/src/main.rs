@@ -46,7 +46,10 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-fn _parse_content(file_name: &str) -> (HashSet<(usize, usize)>, Vec<(char, usize)>) {
+type DotsType = Vec<(usize, usize)>;
+type FoldingsType = Vec<(char, usize)>;
+
+fn _parse_content(file_name: &str) -> (DotsType, FoldingsType) {
     let content = fs::read_to_string(file_name).unwrap();
     let (dots, folds) = content.split("\r\n\r\n").collect_tuple().unwrap();
 
@@ -58,7 +61,7 @@ fn _parse_content(file_name: &str) -> (HashSet<(usize, usize)>, Vec<(char, usize
                 .collect_tuple()
                 .unwrap()
         })
-        .collect::<HashSet<(usize, usize)>>();
+        .collect::<DotsType>();
 
     let folds = folds
         .split("\r\n")
@@ -69,12 +72,12 @@ fn _parse_content(file_name: &str) -> (HashSet<(usize, usize)>, Vec<(char, usize
             let fold_position = position.parse::<usize>().unwrap();
             (axis_char, fold_position)
         })
-        .collect::<Vec<(char, usize)>>();
+        .collect::<FoldingsType>();
 
     (dots, folds)
 }
 
-fn print_dots(dots: &HashSet<(usize, usize)>) {
+fn print_dots(dots: &DotsType) {
     let max_x = dots.iter().map(|(dot_x, _)| dot_x).max().unwrap();
     let max_y = dots.iter().map(|(_, dot_y)| dot_y).max().unwrap();
     for y in 0..=*max_y {
@@ -89,74 +92,68 @@ fn print_dots(dots: &HashSet<(usize, usize)>) {
     }
 }
 
-fn fold_one(
-    dots: HashSet<(usize, usize)>,
-    fold_axis: char,
-    fold_pos: usize,
-) -> HashSet<(usize, usize)> {
-    let mut new_dots = HashSet::new();
+fn fold_one(dots: DotsType, fold_axis: char, fold_pos: usize) -> DotsType {
+    let mut new_dots = DotsType::new();
     if fold_axis == 'y' {
         for (dot_x, dot_y) in dots.iter() {
             if dot_y < &fold_pos {
-                new_dots.insert((*dot_x, *dot_y));
+                new_dots.push((*dot_x, *dot_y));
             } else if dot_y == &fold_pos {
                 // erase
             } else {
                 // dot_y > &fold_pos
                 let new_dot_y = 2 * fold_pos - dot_y;
-                new_dots.insert((*dot_x, new_dot_y));
+                new_dots.push((*dot_x, new_dot_y));
             }
         }
     } else {
         assert_eq!(fold_axis, 'x');
         for (dot_x, dot_y) in dots.iter() {
             if dot_x < &fold_pos {
-                new_dots.insert((*dot_x, *dot_y));
+                new_dots.push((*dot_x, *dot_y));
             } else if dot_x == &fold_pos {
                 // erase
             } else {
                 // dot_x > &fold_pos
                 let new_dot_x = 2 * fold_pos - dot_x;
-                new_dots.insert((new_dot_x, *dot_y));
+                new_dots.push((new_dot_x, *dot_y));
             }
         }
     }
     new_dots
 }
 
-fn fold_all(dots: HashSet<(usize, usize)>, folds: &Vec<(char, usize)>) -> HashSet<(usize, usize)> {
-    let mut new_dots = HashSet::new();
-    for (mut dot_x, mut dot_y) in dots.iter() {
-        let mut erase = false;
+fn fold_all(dots: &mut DotsType, folds: &FoldingsType) {
+    let mut index = 0;
+    'outer: while index < dots.len() {
+        let dot = &mut dots[index];
         for (fold_axis, fold_pos) in folds.iter() {
             if *fold_axis == 'y' {
-                if dot_y < *fold_pos {
-                    // ignore
-                } else if dot_y == *fold_pos {
-                    erase = true;
-                    break;
+                if dot.1 < *fold_pos {
+                    // place doesn't change
+                } else if dot.1 == *fold_pos {
+                    dots.remove(index);
+                    continue 'outer; // break + skip index += 1
                 } else {
-                    // dot_y > &fold_pos
-                    dot_y = 2 * fold_pos - dot_y;
+                    // dot_y > *fold_pos
+                    dot.1 = 2 * fold_pos - dot.1;
                 }
             } else {
                 assert_eq!(*fold_axis, 'x');
-                if dot_x < *fold_pos {
-                    // ignore
-                } else if dot_x == *fold_pos {
-                    erase = true;
-                    break;
+                if dot.0 < *fold_pos {
+                    // place doesn't change
+                } else if dot.0 == *fold_pos {
+                    dots.remove(index);
+                    continue 'outer; // break + skip index += 1
                 } else {
-                    // dot_x > &fold_pos
-                    dot_x = 2 * fold_pos - dot_x;
+                    // dot_x > *fold_pos
+                    dot.0 = 2 * fold_pos - dot.0;
                 }
             }
         }
-        if !erase {
-            new_dots.insert((dot_x, dot_y));
-        }
+
+        index += 1;
     }
-    new_dots
 }
 
 /// The part1 function calculates the result for part2
@@ -195,7 +192,7 @@ fn solve_part2(file_name: &str) -> Result<usize, String> {
         dots = fold(dots, fold_axis, fold_pos);
     }
     */
-    dots = fold_all(dots, &folds);
+    fold_all(&mut dots, &folds);
 
     print_dots(&dots);
     Ok(dots.len())
