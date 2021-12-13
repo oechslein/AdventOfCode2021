@@ -11,7 +11,7 @@
 extern crate test;
 
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::convert::TryInto;
 use std::error;
 use std::fmt;
@@ -142,11 +142,11 @@ impl UndirectedGraph {
         let goal_node = &Node::End;
 
         let mut all_pathes: Vec<NodePath> = Vec::new();
-        let mut queue: Vec<NodePath> = Vec::new();
-        queue.push(vec![start_node]);
+        let mut queue: VecDeque<NodePath> = VecDeque::new();
+        queue.push_back(vec![start_node]);
 
         while !queue.is_empty() {
-            let curr_path = queue.pop().unwrap();
+            let curr_path = queue.pop_front().unwrap();
             let curr_node = *curr_path.last().unwrap();
             //println!("Removed from queue {:?}", curr_path);
 
@@ -159,7 +159,7 @@ impl UndirectedGraph {
                     new_path.push(child_node);
                     if !is_invalid_fn(&new_path) {
                         //println!("Added to queue {:?}", new_path);
-                        queue.push(new_path);
+                        queue.push_back(new_path);
                     } else {
                         //println!("Excluded {:?}", new_path);
                     }

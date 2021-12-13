@@ -166,7 +166,7 @@ fn solve_part1(file_name: &str) -> Result<usize, String> {
     //fold_problem.print_dots();
 
     // just first fold
-    fold_problem.folds = vec![fold_problem.folds[0]];
+    fold_problem.folds.drain(1..fold_problem.folds.len());
     fold_problem.apply_foldings();
     //fold_problem.print_dots();
 
