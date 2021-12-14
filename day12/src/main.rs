@@ -14,7 +14,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::convert::TryInto;
 use std::error;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
@@ -145,8 +145,7 @@ impl UndirectedGraph {
         let mut queue: VecDeque<NodePath> = VecDeque::new();
         queue.push_back(vec![start_node]);
 
-        while !queue.is_empty() {
-            let curr_path = queue.pop_front().unwrap();
+        while let Some(curr_path) = queue.pop_front() {
             let curr_node = *curr_path.last().unwrap();
             //println!("Removed from queue {:?}", curr_path);
 
