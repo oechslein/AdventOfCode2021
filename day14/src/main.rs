@@ -47,126 +47,118 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-type PolymerAsCounterType = Counter<String>;
-type RulesType = HashMap<String, (String, String)>;
+type CountedPolymerPairs = Counter<String>;
+type Rules = HashMap<String, (String, String)>;
 
-fn parse_input(file_name: &str) -> (String, RulesType) {
-    let file_to_string = utils::file_to_string(file_name);
-    let (polymer_content, rules_content) =
-        file_to_string.split("\r\n\r\n").collect_tuple().unwrap();
-    let polymer = polymer_content.to_string();
-    let rules: RulesType = rules_content
-        .split("\r\n")
-        .map(|rule_str| {
-            let (left_str, right_str) = rule_str.split(" -> ").collect_tuple().unwrap();
-            let left = left_str.to_string();
+struct PolymerProblem {
+    _start_polymer: String,
+    _rules: Rules,
+}
 
-            let mut right_1 = left[0..1].to_string().clone();
-            let insert_char = right_str.chars().next().unwrap();
-            right_1.push(insert_char);
-            let mut right_2 = left[1..].to_string().clone();
-            right_2.insert(0, insert_char);
+/*
+Expand rules
+    CN -> CC CN
+    HN -> HC CN
+    NB -> NB BB
+    BB -> BN NB
+    BN -> BB BN
+    BH -> BH HH
+    BC -> BB BC
+    CC -> CN NC
+    CB -> CH HB
+    HH -> HN NH
+    HC -> HB BC
+    NC -> NB BC
+    HB -> HC CB
+    NN -> NC CN
+    CH -> CB BH
+    NH -> NC CH
+*/
+fn parse_rule(rule_str: &str) -> (String, (String, String)) {
+    let (pattern, right_str) = rule_str.split(" -> ").collect_tuple().unwrap();
+    let insert_char = right_str.chars().next().unwrap();
+    let left_expansion = pattern[0..1].to_string() + &insert_char.to_string();
+    let right_expansion = insert_char.to_string() + &pattern[1..];
+    (pattern.to_string(), (left_expansion, right_expansion))
+}
 
-            (left, (right_1, right_2))
+impl FromStr for PolymerProblem {
+    type Err = String;
+
+    fn from_str(content: &str) -> Result<Self, Self::Err> {
+        let (polymer_content, rules_content) = content.split("\r\n\r\n").collect_tuple().unwrap();
+        let polymer = polymer_content.to_string();
+        let rules: Rules = rules_content.split("\r\n").map(parse_rule).collect();
+        //println!("rules: {:?}", rules);
+        Ok(PolymerProblem {
+            _start_polymer: polymer,
+            _rules: rules,
         })
-        .collect();
-    //println!("rules: {:?}", rules);
-    (polymer, rules)
+    }
 }
 
-fn apply_steps(steps: i32, polymer: &String, rules: RulesType) -> PolymerAsCounterType {
-    let mut polymer_as_counter = (0..polymer.len() - 1)
-        .map::<String, _>(|index| polymer[index..=index + 1].into())
-        .collect::<PolymerAsCounterType>();
-    for _ in 0..steps {
-        polymer_as_counter = apply_rules(&polymer_as_counter, &rules);
+impl PolymerProblem {
+    fn solve(&self, steps: i32) -> usize {
+        self.calc_result(self.apply_steps(steps))
     }
-    polymer_as_counter
-}
 
-fn apply_rules(
-    polymer_as_counter: &PolymerAsCounterType,
-    rules: &RulesType,
-) -> PolymerAsCounterType {
-    let mut new_polymer_as_counter = Counter::new();
-    for (polymer_pair, polymer_count) in polymer_as_counter.iter() {
-        let (replacement_1, replacement_2) = rules.get(polymer_pair).unwrap();
-        new_polymer_as_counter[replacement_1] += polymer_count;
-        new_polymer_as_counter[replacement_2] += polymer_count;
-    }
-    new_polymer_as_counter
-}
+    fn apply_steps(&self, steps: i32) -> CountedPolymerPairs {
+        /*
+               From string to pairs, then apply extended rules, then back to string
+               NNCB => NN, NC, CB => [NN -> (NC, CN)] [NC -> (NB, BC)] [CB -> (CH, HB)] => NC CN NB BC CH HB => NCNBCHB
+               Just work on pairs and count occurance (order is lost, but not relevant for solution)
+        */
 
-fn calc_result(polymer_as_counter: PolymerAsCounterType, polymer: String) -> usize {
-    let all_chars = polymer_as_counter
-        .into_iter()
-        .map(|(key, value)| (key.chars().next().unwrap(), value));
-    let mut frequencies = Counter::<char>::new();
-    for (c, value) in all_chars {
-        frequencies[&c] += value;
+        let mut counted_polymer_pairs = self.create_counted_polymer_pairs();
+        for _ in 0..steps {
+            counted_polymer_pairs = self.apply_rules(&counted_polymer_pairs);
+        }
+        counted_polymer_pairs
     }
-    // last char is missing
-    frequencies[&polymer.chars().rev().next().unwrap()] += 1;
-    frequencies.values().max().unwrap() - frequencies.values().min().unwrap()
+
+    fn create_counted_polymer_pairs(&self) -> Counter<String> {
+        let polymer = &self._start_polymer;
+        (0..polymer.len() - 1)
+            .map::<String, _>(|index| polymer[index..=index + 1].to_string())
+            .collect::<CountedPolymerPairs>()
+    }
+
+    fn apply_rules(&self, counted_polymer_pairs: &CountedPolymerPairs) -> CountedPolymerPairs {
+        let rules = &self._rules;
+        let mut new_counted_polymer_pairs = Counter::new();
+        for (polymer_pair, polymer_count) in counted_polymer_pairs.iter() {
+            let (left_expansion, right_expansion) = rules.get(polymer_pair).unwrap();
+            new_counted_polymer_pairs[left_expansion] += polymer_count;
+            new_counted_polymer_pairs[right_expansion] += polymer_count;
+        }
+        new_counted_polymer_pairs
+    }
+
+    fn calc_result(&self, counted_polymer_pairs: CountedPolymerPairs) -> usize {
+        let all_chars = counted_polymer_pairs
+            .into_iter()
+            .map(|(key, value)| (key.chars().next().unwrap(), value));
+        let mut frequencies = Counter::<char>::new();
+        for (c, value) in all_chars {
+            frequencies[&c] += value;
+        }
+        // last char is missing
+        frequencies[&self._start_polymer.chars().rev().next().unwrap()] += 1;
+        frequencies.values().max().unwrap() - frequencies.values().min().unwrap()
+    }
 }
 
 /// The part1 function calculates the result for part2
 fn solve_part1(file_name: &str) -> Result<usize, String> {
-    /*
-       [("CB", 1), ("NC", 1), ("NN", 1)]
-       [("BC", 1), ("CH", 1), ("CN", 1), ("HB", 1), ("NB", 1), ("NC", 1)]
-       [("BB", 2), ("BC", 2), ("BH", 1), ("CB", 2), ("CC", 1), ("CN", 1), ("HC", 1), ("NB", 2)]
-    ++ [("BB", 2), ("BC", 2), ("BH", 1), ("CB", 2), ("CC", 1), ("CN", 1), ("HC", 1), ("NB", 2)]
-       [("BB", 4), ("BC", 3), ("BH", 1), ("BN", 2), ("CC", 1), ("CH", 2), ("CN", 2), ("HB", 3), ("HH", 1), ("NB", 4), ("NC", 1)]
-    ++ [("BB", 4), ("BC", 3), ("BH", 1), ("BN", 2), ("CC", 1), ("CH", 2), ("CN", 2), ("HB", 3), ("HH", 1), ("NB", 4), ("NC", 1)]
-
-       NNCB => NN, NC, CB
-       NCNBCHB => NC, CN, NB, BC, CH, HB
-       NBCCNBBBCBHCB => NB BC CC CN NB BB BB BC CB BH HC CB
-       NBBBCNCCNBBNBNBBCHBHHBCHB => NB BB BB BC CN NC CC CN NB BB BN NB BN NB BB BC CH HB BH HH HB BC CH HB
-       NBBNBNBBCCNBCNCCNBBNBBNBBBNBBNBBCBHCBHHNHCBBCBHCB
-
-       [("BC", 1), ("CH", 1), ("CN", 1), ("HB", 1), ("NB", 1), ("NC", 1)]
-       NCNBCH_B
-       N_CNBCHB
-
-
-       NNCB => NN, NC, CB (=> NCNBCHB)
-
-       NN -> C => NN -> NCN => NN -> (NC, CN)
-       NC -> B => NC -> NBC => NC -> (NB, BC)
-       CB -> H => CB -> CHB => CB -> (CH, HB)
-
-       CN -> CC CN
-       HN -> HC CN
-       NB -> NB BB
-       BB -> BN NB
-       BN -> BB BN
-       BH -> BH HH
-       BC -> BB BC
-       CC -> CN NC
-       CB -> CH HB
-       HH -> HN NH
-       HC -> HB BC
-       NC -> NB BC
-       HB -> HC CB
-       NN -> NC CN
-       CH -> CB BH
-       NH -> NC CH
-
-       */
-
-    let (polymer, rules) = parse_input(file_name);
-    let polymer_as_counter = apply_steps(10, &polymer, rules);
-    let result = calc_result(polymer_as_counter, polymer);
+    let polymer_problem = PolymerProblem::from_str(&utils::file_to_string(file_name)).unwrap();
+    let result = polymer_problem.solve(10);
 
     Ok(result)
 }
 
 fn solve_part2(file_name: &str) -> Result<usize, String> {
-    let (polymer, rules) = parse_input(file_name);
-    let polymer_as_counter = apply_steps(40, &polymer, rules);
-    let result = calc_result(polymer_as_counter, polymer);
+    let polymer_problem = PolymerProblem::from_str(&utils::file_to_string(file_name)).unwrap();
+    let result = polymer_problem.solve(40);
 
     Ok(result)
 }
