@@ -30,7 +30,7 @@ use array2d::Array2D;
 use counter::Counter;
 //use counter::Counter;
 use itertools::{all, Itertools};
-use petgraph::algo::dijkstra;
+use petgraph::algo::{astar, dijkstra, floyd_warshall};
 use petgraph::graphmap::GraphMap;
 use petgraph::{Directed, Graph, Undirected};
 use test::Bencher;
@@ -128,8 +128,21 @@ fn create_big_tile(tile: &TileType, amount_x: usize, amount_y: usize) -> TileTyp
 fn calc_costs_topleft_bottom_right(graph: GraphType) -> usize {
     let start = (0, 0);
     let end = graph.nodes().sorted().rev().next().unwrap();
+    /*
     let node_map = dijkstra(&graph, start, Some(end), |(_, _, weight)| *weight);
     node_map[&end]
+    */
+    let (costs, _) = astar(
+        &graph,
+        start,
+        |finish| finish == end,
+        |(_, _, weight)| *weight,
+        // wrong heuristic, leads to wrong path: |pos| (end.0 - pos.0).pow(2) + (end.1 - pos.1).pow(2),
+        |pos| (end.0 - pos.0) + (end.1 - pos.1),
+    )
+    .unwrap();
+
+    costs
 }
 
 fn print_array2d(tile: &Array2D<isize>) {
