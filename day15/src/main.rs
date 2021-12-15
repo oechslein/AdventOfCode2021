@@ -1,7 +1,6 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 #![allow(unused_must_use)]
-
 #![feature(generators, generator_trait)]
 #![feature(test)]
 #![feature(drain_filter)]
@@ -114,7 +113,7 @@ fn create_big_tile(tile: &TileType, amount_x: usize, amount_y: usize) -> TileTyp
 fn calc_costs_topleft_bottom_right(graph: GraphType) -> usize {
     let start = (0, 0);
     let end = graph.nodes().max().unwrap();
-    
+
     let node_map = dijkstra(&graph, start, Some(end), |(_, _, weight)| *weight);
     node_map[&end]
 
@@ -128,10 +127,9 @@ fn calc_costs_topleft_bottom_right(graph: GraphType) -> usize {
         |pos| (end.0 - pos.0) + (end.1 - pos.1),
     ).unwrap().0
     */
-
 }
 
-fn print_array2d(tile: &Array2D<isize>) {
+fn print_array2d(tile: &TileType) {
     for y in 0..tile.num_rows() {
         for x in 0..tile.num_columns() {
             print!("{} ", tile[(x, y)]);
