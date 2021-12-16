@@ -35,6 +35,8 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
+type BitSliceType = BitSlice<Msb0, u8>;
+
 #[derive(Debug, PartialEq, Eq, FromPrimitive)]
 enum OP {
     Sum = 0,
@@ -120,7 +122,7 @@ fn solve_part2(file_name: &str) -> Result<usize, String> {
     Ok(result)
 }
 
-fn parse_package(bit_slice: &BitSlice<Msb0, u8>, curr_index: &mut usize) -> Package {
+fn parse_package(bit_slice: &BitSliceType, curr_index: &mut usize) -> Package {
     let package_version = bit_slice_to_value(bit_slice, curr_index, 3);
     let package_type = bit_slice_to_value(bit_slice, curr_index, 3);
     if package_type == 4 {
@@ -163,19 +165,14 @@ fn parse_package(bit_slice: &BitSlice<Msb0, u8>, curr_index: &mut usize) -> Pack
     }
 }
 
-fn bit_slice_to_value(
-    bit_slice: &BitSlice<Msb0, u8>,
-    curr_index: &mut usize,
-    length: usize,
-) -> usize {
+fn bit_slice_to_value(bit_slice: &BitSliceType, curr_index: &mut usize, length: usize) -> usize {
     let end_index = *curr_index + length;
-    let bit_slice: &BitSlice<Msb0, u8> = &bit_slice[*curr_index..end_index];
+    let bit_slice: &BitSliceType = &bit_slice[*curr_index..end_index];
     let mut result: usize = 0;
     for bit in bit_slice.iter() {
+        result *= 2;
         if *bit {
-            result = 2 * result + 1;
-        } else {
-            result *= 2;
+            result += 1;
         }
     }
     *curr_index += length;
@@ -183,7 +180,7 @@ fn bit_slice_to_value(
 }
 
 fn create_bit_vec(content: &str) -> BitVec<Msb0, u8> {
-    let mut io_buf: BitVec<Msb0, u8> = BitVec::new();
+    let mut io_buf = BitVec::<Msb0, u8>::new();
     io_buf.resize(content.len() / 2 * 8, false);
     (0..content.len())
         .step_by(2)
