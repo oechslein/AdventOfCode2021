@@ -37,13 +37,37 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 #[derive(Debug, PartialEq, Eq, FromPrimitive)]
 enum OP {
-    SUM = 0,
-    PRODUCT = 1,
-    MIN = 2,
-    MAX = 3,
-    GREATER_THAN = 5,
-    LESS_THAN = 6,
-    EQUAL = 7,
+    Sum = 0,
+    Product = 1,
+    Min = 2,
+    Max = 3,
+    GreaterThan = 5,
+    LessThan = 6,
+    Equal = 7,
+}
+
+impl OP {
+    fn apply(&self, sub_values: impl Iterator<Item = usize>) -> usize {
+        match self {
+            OP::Sum => sub_values.sum(),
+            OP::Product => sub_values.product(),
+            OP::Min => sub_values.min().unwrap(),
+            OP::Max => sub_values.max().unwrap(),
+            OP::GreaterThan | OP::LessThan | OP::Equal => {
+                let (a, b) = sub_values.collect_tuple().unwrap();
+                let result = match self {
+                    OP::GreaterThan => a > b,
+                    OP::LessThan => a < b,
+                    OP::Equal => a == b,
+                    _ => unreachable!(),
+                };
+                match result {
+                    true => 1,
+                    false => 0,
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -65,34 +89,12 @@ impl Package {
     fn calc(&self) -> usize {
         match self {
             Package::Value(_, value) => *value,
-            Package::Op(_, op, sub_packages) => {
-                let sub_values = sub_packages.iter().map(Package::calc);
-                match op {
-                    OP::SUM => sub_values.sum(),
-                    OP::PRODUCT => sub_values.product(),
-                    OP::MIN => sub_values.min().unwrap(),
-                    OP::MAX => sub_values.max().unwrap(),
-                    OP::GREATER_THAN | OP::LESS_THAN | OP::EQUAL => {
-                        let (a, b) = sub_values.collect_tuple().unwrap();
-                        let result = match op {
-                            OP::GREATER_THAN => a > b,
-                            OP::LESS_THAN => a < b,
-                            OP::EQUAL => a == b,
-                            _ => panic!(),
-                        };
-                        match result {
-                            true => 1,
-                            false => 0,
-                        }
-                    }
-                }
-            }
+            Package::Op(_, op, sub_packages) => op.apply(sub_packages.iter().map(Package::calc)),
         }
     }
 
     fn create_package_from_str(s: &str) -> Package {
-        let (p, _) = parse_package(&create_bit_vec(s), 0);
-        p
+        parse_package(&create_bit_vec(s), &mut 0)
     }
 
     fn solve_part1(s: &str) -> (Package, usize) {
@@ -105,7 +107,7 @@ impl Package {
         let p = Package::create_package_from_str(s);
         let result = p.calc();
         (p, result)
-    }    
+    }
 }
 
 fn solve_part1(file_name: &str) -> Result<usize, String> {
@@ -118,65 +120,56 @@ fn solve_part2(file_name: &str) -> Result<usize, String> {
     Ok(result)
 }
 
-fn parse_package(bit_slice: &BitSlice<Msb0, u8>, curr_index: usize) -> (Package, usize) {
-    let package_version = bit_slice_to_value(&bit_slice[curr_index..curr_index + 3]);
-    let package_type = bit_slice_to_value(&bit_slice[curr_index + 3..curr_index + 6]);
+fn parse_package(bit_slice: &BitSlice<Msb0, u8>, curr_index: &mut usize) -> Package {
+    let package_version = bit_slice_to_value(bit_slice, curr_index, 3);
+    let package_type = bit_slice_to_value(bit_slice, curr_index, 3);
     if package_type == 4 {
         // literal value
-        let mut curr_index = curr_index + 6;
         let mut result: usize = 0;
         loop {
-            let value = bit_slice_to_value(&bit_slice[curr_index + 1..curr_index + 5]);
-            result = result * 16 + value;
-            if !bit_slice[curr_index] {
+            let is_last_group = bit_slice_to_value(bit_slice, curr_index, 1) == 0;
+            let value = bit_slice_to_value(bit_slice, curr_index, 4);
+            result = result * 2usize.pow(4) + value;
+            if is_last_group {
                 // found end
-                curr_index += 5;
                 break;
             }
-            curr_index += 5;
         }
-        let result = (Package::Value(package_version, result), curr_index);
-        //println!("result: {:?}", result);
-        result
+        Package::Value(package_version, result)
     } else {
         // package_type != 4
         // operator
-        let mut curr_index = curr_index + 6;
-        let length_type_id = bit_slice_to_value(&bit_slice[curr_index..curr_index + 1]);
-        curr_index += 1;
+        let length_type_id = bit_slice_to_value(bit_slice, curr_index, 1);
         let mut subpackages = Vec::new();
         if length_type_id == 0 {
             // 15-bit number representing the number of bits in the sub-packets
-            let subpackages_bit_len = bit_slice_to_value(&bit_slice[curr_index..curr_index + 15]);
-            curr_index += 15;
-            let end_index = curr_index + subpackages_bit_len;
-            while curr_index != end_index {
+            let subpackages_bit_len = bit_slice_to_value(bit_slice, curr_index, 15);
+            let end_index = *curr_index + subpackages_bit_len;
+            while *curr_index != end_index {
                 //println!("{} > {}", curr_index, end_index);
-                assert!(curr_index < end_index);
-                let (parsed_package, next_index) = parse_package(bit_slice, curr_index);
-                subpackages.push(parsed_package);
-                curr_index = next_index;
+                assert!(*curr_index < end_index);
+                subpackages.push(parse_package(bit_slice, curr_index));
             }
         } else {
             // 11-bit number representing the number of sub-packets
-            let subpackages_amount = bit_slice_to_value(&bit_slice[curr_index..curr_index + 11]);
-            curr_index += 11;
-            for i in 0..subpackages_amount {
-                //println!( "{} of {}, curr_index: {}",i, subpackages_amount, curr_index);
-                let (parsed_package, next_index) = parse_package(bit_slice, curr_index);
-                subpackages.push(parsed_package);
-                curr_index = next_index;
+            let subpackages_amount = bit_slice_to_value(bit_slice, curr_index, 11);
+            for _ in 0..subpackages_amount {
+                subpackages.push(parse_package(bit_slice, curr_index));
             }
         }
 
-        let op: OP = FromPrimitive::from_usize(package_type).unwrap();
-        let result = (Package::Op(package_version, op, subpackages), curr_index);
-        //println!("result: {:?}", result);
-        result
+        let op = FromPrimitive::from_usize(package_type).unwrap();
+        Package::Op(package_version, op, subpackages)
     }
 }
 
-fn bit_slice_to_value(bit_slice: &BitSlice<Msb0, u8>) -> usize {
+fn bit_slice_to_value(
+    bit_slice: &BitSlice<Msb0, u8>,
+    curr_index: &mut usize,
+    length: usize,
+) -> usize {
+    let end_index = *curr_index + length;
+    let bit_slice: &BitSlice<Msb0, u8> = &bit_slice[*curr_index..end_index];
     let mut result: usize = 0;
     for bit in bit_slice.iter() {
         if *bit {
@@ -185,29 +178,24 @@ fn bit_slice_to_value(bit_slice: &BitSlice<Msb0, u8>) -> usize {
             result *= 2;
         }
     }
+    *curr_index += length;
     result
 }
 
 fn create_bit_vec(content: &str) -> BitVec<Msb0, u8> {
     let mut io_buf: BitVec<Msb0, u8> = BitVec::new();
     io_buf.resize(content.len() / 2 * 8, false);
-    let mut index = 0;
-    while index < content.len() {
-        let start_index = index;
-        let end_index = index + 1;
-        let start_index_bits = start_index * 8 / 2;
-        let from_str_radix = u8::from_str_radix(&content[start_index..=end_index], 16);
-        if from_str_radix.is_err() {
-            panic!(
-                "start_index {} end_index {} content {:?}",
-                start_index,
-                end_index,
-                &content[start_index..=end_index]
-            );
-        }
-        io_buf[start_index_bits..(start_index_bits + 8)].store(from_str_radix.unwrap());
-        index += 2;
-    }
+    (0..content.len())
+        .step_by(2)
+        .map(|index| {
+            (
+                index * 8 / 2,
+                u8::from_str_radix(&content[index..=index + 1], 16).unwrap(),
+            )
+        })
+        .for_each(|(start_index_bits, from_str_radix)| {
+            io_buf[start_index_bits..(start_index_bits + 8)].store(from_str_radix);
+        });
     io_buf
 }
 
@@ -225,7 +213,7 @@ mod tests {
             (
                 Package::Op(
                     1,
-                    OP::LESS_THAN,
+                    OP::LessThan,
                     vec![Package::Value(6, 10), Package::Value(2, 20)]
                 ),
                 1 + 6 + 2
@@ -236,7 +224,7 @@ mod tests {
             (
                 Package::Op(
                     7,
-                    OP::MAX,
+                    OP::Max,
                     vec![
                         Package::Value(2, 1),
                         Package::Value(4, 2),
@@ -252,11 +240,11 @@ mod tests {
             (
                 Package::Op(
                     4,
-                    OP::MIN,
+                    OP::Min,
                     vec![Package::Op(
                         1,
-                        OP::MIN,
-                        vec![Package::Op(5, OP::MIN, vec![Package::Value(6, 15)])]
+                        OP::Min,
+                        vec![Package::Op(5, OP::Min, vec![Package::Value(6, 15)])]
                     )]
                 ),
                 4 + 1 + 5 + 6
@@ -268,16 +256,16 @@ mod tests {
             (
                 Package::Op(
                     3,
-                    OP::SUM,
+                    OP::Sum,
                     vec![
                         Package::Op(
                             0,
-                            OP::SUM,
+                            OP::Sum,
                             vec![Package::Value(0, 10), Package::Value(5, 11)]
                         ),
                         Package::Op(
                             1,
-                            OP::SUM,
+                            OP::Sum,
                             vec![Package::Value(0, 12), Package::Value(3, 13)]
                         )
                     ]
@@ -290,16 +278,16 @@ mod tests {
             (
                 Package::Op(
                     6,
-                    OP::SUM,
+                    OP::Sum,
                     vec![
                         Package::Op(
                             0,
-                            OP::SUM,
+                            OP::Sum,
                             vec![Package::Value(0, 10), Package::Value(6, 11)]
                         ),
                         Package::Op(
                             4,
-                            OP::SUM,
+                            OP::Sum,
                             vec![Package::Value(7, 12), Package::Value(0, 13)]
                         )
                     ]
@@ -312,13 +300,13 @@ mod tests {
             (
                 Package::Op(
                     5,
-                    OP::SUM,
+                    OP::Sum,
                     vec![Package::Op(
                         1,
-                        OP::SUM,
+                        OP::Sum,
                         vec![Package::Op(
                             3,
-                            OP::SUM,
+                            OP::Sum,
                             vec![
                                 Package::Value(7, 6),
                                 Package::Value(6, 6),
