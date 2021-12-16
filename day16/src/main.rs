@@ -14,8 +14,6 @@ use itertools::Itertools;
 use std::error;
 use std::str::FromStr;
 
-use bitvec::prelude::*;
-
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -34,8 +32,6 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-
-type BitSliceType = BitSlice<Msb0, u8>;
 
 #[derive(Debug, PartialEq, Eq, FromPrimitive)]
 enum OP {
@@ -96,7 +92,14 @@ impl Package {
     }
 
     fn create_package_from_str(s: &str) -> Package {
-        parse_package(&create_bit_vec(s), &mut 0)
+        let binary_string = s
+            .trim()
+            .chars()
+            .map(|c| format!("{:04b}", u8::from_str_radix(&c.to_string(), 16).unwrap()))
+            .collect::<String>();
+        // D    2    F    E    2    8
+        // 1101 0010 1111 1110 0010 1000"
+        parse_package(&binary_string, &mut 0)
     }
 
     fn solve_part1(s: &str) -> (Package, usize) {
@@ -122,15 +125,15 @@ fn solve_part2(file_name: &str) -> Result<usize, String> {
     Ok(result)
 }
 
-fn parse_package(bit_slice: &BitSliceType, curr_index: &mut usize) -> Package {
-    let package_version = bit_slice_to_value(bit_slice, curr_index, 3);
-    let package_type = bit_slice_to_value(bit_slice, curr_index, 3);
+fn parse_package(s: &str, curr_index: &mut usize) -> Package {
+    let package_version = str_slice(s, curr_index, 3);
+    let package_type = str_slice(s, curr_index, 3);
     if package_type == 4 {
         // literal value
         let mut result: usize = 0;
         loop {
-            let is_last_group = bit_slice_to_value(bit_slice, curr_index, 1) == 0;
-            let value = bit_slice_to_value(bit_slice, curr_index, 4);
+            let is_last_group = str_slice(s, curr_index, 1) == 0;
+            let value = str_slice(s, curr_index, 4);
             result = result * 2usize.pow(4) + value;
             if is_last_group {
                 // found end
@@ -141,22 +144,22 @@ fn parse_package(bit_slice: &BitSliceType, curr_index: &mut usize) -> Package {
     } else {
         // package_type != 4
         // operator
-        let length_type_id = bit_slice_to_value(bit_slice, curr_index, 1);
+        let length_type_id = str_slice(s, curr_index, 1);
         let mut subpackages = Vec::new();
         if length_type_id == 0 {
             // 15-bit number representing the number of bits in the sub-packets
-            let subpackages_bit_len = bit_slice_to_value(bit_slice, curr_index, 15);
+            let subpackages_bit_len = str_slice(s, curr_index, 15);
             let end_index = *curr_index + subpackages_bit_len;
             while *curr_index != end_index {
                 //println!("{} > {}", curr_index, end_index);
                 assert!(*curr_index < end_index);
-                subpackages.push(parse_package(bit_slice, curr_index));
+                subpackages.push(parse_package(s, curr_index));
             }
         } else {
             // 11-bit number representing the number of sub-packets
-            let subpackages_amount = bit_slice_to_value(bit_slice, curr_index, 11);
+            let subpackages_amount = str_slice(s, curr_index, 11);
             for _ in 0..subpackages_amount {
-                subpackages.push(parse_package(bit_slice, curr_index));
+                subpackages.push(parse_package(s, curr_index));
             }
         }
 
@@ -165,35 +168,11 @@ fn parse_package(bit_slice: &BitSliceType, curr_index: &mut usize) -> Package {
     }
 }
 
-fn bit_slice_to_value(bit_slice: &BitSliceType, curr_index: &mut usize, length: usize) -> usize {
-    let end_index = *curr_index + length;
-    let bit_slice: &BitSliceType = &bit_slice[*curr_index..end_index];
-    let mut result: usize = 0;
-    for bit in bit_slice.iter() {
-        result *= 2;
-        if *bit {
-            result += 1;
-        }
-    }
+fn str_slice(s: &str, curr_index: &mut usize, length: usize) -> usize {
+    let start_index = *curr_index;
+    let end_index = start_index + length;
     *curr_index += length;
-    result
-}
-
-fn create_bit_vec(content: &str) -> BitVec<Msb0, u8> {
-    let mut io_buf = BitVec::<Msb0, u8>::new();
-    io_buf.resize(content.len() / 2 * 8, false);
-    (0..content.len())
-        .step_by(2)
-        .map(|index| {
-            (
-                index * 8 / 2,
-                u8::from_str_radix(&content[index..=index + 1], 16).unwrap(),
-            )
-        })
-        .for_each(|(start_index_bits, from_str_radix)| {
-            io_buf[start_index_bits..(start_index_bits + 8)].store(from_str_radix);
-        });
-    io_buf
+    usize::from_str_radix(&s[start_index..end_index], 2).unwrap()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

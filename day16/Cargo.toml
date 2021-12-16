@@ -10,7 +10,7 @@ itertools = "0.10.1"       # Extra iterator adaptors, iterator methods, free fun
 #counter = "0.5.2"
 #petgraph = "0.6.0"         # Graph data structure library. Provides graph types and graph algorithms.
 #array2d = "0.2.1"
-bitvec = "0.22.3"
+#bitvec = "0.22.3"
 
 num-traits = "0.2"
 num-derive = "0.3.3"
