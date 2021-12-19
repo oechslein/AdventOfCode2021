@@ -58,24 +58,24 @@ impl Orientation {
                 for z_inverted in [true, false] {
                     for x_index in 0..3 {
                         for y_index in 0..3 {
-                            if x_index != y_index {
-                                let z_index = 3 - x_index - y_index;
-                                all_orientations.push(Orientation {
-                                    x_inverted,
-                                    y_inverted,
-                                    z_inverted,
-                                    x_index,
-                                    y_index,
-                                    z_index,
-                                })
+                            if x_index == y_index {
+                                continue;
                             }
+                            
+                            let z_index = 3 - x_index - y_index;
+                            all_orientations.push(Orientation {
+                                x_inverted,
+                                y_inverted,
+                                z_inverted,
+                                x_index,
+                                y_index,
+                                z_index,
+                            })
                         }
                     }
                 }
             }
         }
-
-        // TODO IF have 48, assert_eq!(all_orientations.len(), 24);
 
         all_orientations
     }
@@ -128,19 +128,19 @@ impl Point3D {
         Point3D::new(x, y, z)
     }
 
-    fn get_translation(&self, point_to: &Point3D) -> Point3D {
-        Point3D::new(
-            point_to.x() - self.x(),
-            point_to.y() - self.y(),
-            point_to.z() - self.z(),
-        )
-    }
-
     fn apply_translation(&self, point_by: &Point3D) -> Point3D {
         Point3D::new(
             self.x() + point_by.x(),
             self.y() + point_by.y(),
             self.z() + point_by.z(),
+        )
+    }
+
+    fn get_translation(&self, point_to: &Point3D) -> Point3D {
+        Point3D::new(
+            point_to.x() - self.x(),
+            point_to.y() - self.y(),
+            point_to.z() - self.z(),
         )
     }
 
@@ -151,10 +151,10 @@ impl Point3D {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 struct ScannerReadings {
     scanner_position: Point3D,
-    beacon_positions: Vec<Point3D>,
+    beacon_positions: HashSet<Point3D>,
 }
 
 impl Display for ScannerReadings {
@@ -171,7 +171,7 @@ impl Display for ScannerReadings {
 }
 
 impl ScannerReadings {
-    fn new(beacon_positions: Vec<Point3D>) -> ScannerReadings {
+    fn new(beacon_positions: HashSet<Point3D>) -> ScannerReadings {
         ScannerReadings {
             scanner_position: Point3D::new(0, 0, 0),
             beacon_positions,
@@ -185,7 +185,7 @@ impl ScannerReadings {
                 .beacon_positions
                 .iter()
                 .map(|beacon_position| beacon_position.apply_orientation(orientation))
-                .collect_vec(),
+                .collect(),
         }
     }
 
@@ -196,42 +196,21 @@ impl ScannerReadings {
                 .beacon_positions
                 .iter()
                 .map(|beacon_position| beacon_position.apply_translation(point_by))
-                .collect_vec(),
+                .collect(),
         }
     }
-
-    /* 25! is too big
-    fn all_orderings(&self) -> Vec<ScannerReadings> {
-        println!("y: {}", self.beacon_positions.len());
-        println!(
-            "y: {}",
-            self.beacon_positions
-                .iter()
-                .permutations(self.beacon_positions.len())
-                .count()
-        );
-        self.beacon_positions
-            .iter()
-            .permutations(self.beacon_positions.len())
-            .map(|beacon_positions| ScannerReadings {
-                beacon_positions: beacon_positions.into_iter().copied().collect_vec(),
-            })
-            .collect_vec()
-    }
-    */
 
     fn matching_positions(
         &self,
         full_list_of_correct_beacon_positions: &HashSet<Point3D>,
-    ) -> HashSet<Point3D> {
-        let beacon_positions_set: HashSet<Point3D> =
-            self.beacon_positions.iter().copied().collect();
+    ) -> usize {
+        let beacon_positions_set: &HashSet<Point3D> = &self.beacon_positions;
         let other_beacon_positions_set = full_list_of_correct_beacon_positions;
 
         beacon_positions_set
             .intersection(other_beacon_positions_set)
             .copied()
-            .collect()
+            .count()
     }
 }
 
@@ -253,7 +232,7 @@ fn parse(content: &str) -> VecDeque<ScannerReadings> {
                         .unwrap();
                     Point3D::new(x, y, z)
                 })
-                .collect_vec();
+                .collect();
             ScannerReadings::new(beacon_positions)
         })
         .collect()
@@ -288,21 +267,20 @@ fn solve(file_name: &str) -> (HashSet<Point3D>, Vec<Point3D>) {
 }
 
 fn get_possible_oriented_translated_scanner_readings(
-    scanner_1: &ScannerReadings,
+    scanner: &ScannerReadings,
     full_list_of_correct_beacon_positions: &HashSet<Point3D>,
 ) -> Option<ScannerReadings> {
-    for scanner_0_point_0 in full_list_of_correct_beacon_positions {
+    for point in full_list_of_correct_beacon_positions {
         for orientation in Orientation::all_orientations() {
-            let scanner_1_orientation = scanner_1.apply_orientation(&orientation);
-            for beacon_position_s1 in scanner_1_orientation.beacon_positions.iter() {
-                let translation = beacon_position_s1.get_translation(scanner_0_point_0);
-                let scanner_1_translated = scanner_1_orientation.apply_translation(&translation);
-                let matching_positions = scanner_1_translated
-                    .matching_positions(full_list_of_correct_beacon_positions)
-                    .len();
+            let scanner_orientation = scanner.apply_orientation(&orientation);
+            for beacon_position_s1 in scanner_orientation.beacon_positions.iter() {
+                let translation = beacon_position_s1.get_translation(point);
+                let scanner_translated = scanner_orientation.apply_translation(&translation);
+                let matching_positions =
+                    scanner_translated.matching_positions(full_list_of_correct_beacon_positions);
                 if matching_positions >= 12 {
                     // TODO the remaining ones need to be 1000 away from scanner (both)
-                    return Some(scanner_1_translated);
+                    return Some(scanner_translated);
                 }
             }
         }
