@@ -9,7 +9,6 @@
 
 extern crate test;
 
-use counter::Counter;
 use itertools::Itertools;
 
 use core::num;
@@ -19,6 +18,8 @@ use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::ops::{Add, RangeFrom, SubAssign};
 use std::str::FromStr;
+
+use fxhash::FxHashMap;
 
 mod utils;
 
@@ -59,7 +60,7 @@ impl Pawn {
 }
 
 trait Dice {
-    fn multi_role(&mut self, amount: u64) -> Counter<u64, u64>;
+    fn multi_role(&mut self, amount: u64) -> FxHashMap<u64, u64>;
 }
 
 #[derive(Debug, Clone)]
@@ -94,8 +95,8 @@ impl DeterministicDice {
 }
 
 impl Dice for DeterministicDice {
-    fn multi_role(&mut self, amount: u64) -> Counter<u64, u64> {
-        let mut result = Counter::new();
+    fn multi_role(&mut self, amount: u64) -> FxHashMap<u64, u64> {
+        let mut result = FxHashMap::default();
         result.insert((0..amount).map(|_| self.role()).sum(), 1);
         result
     }
@@ -104,23 +105,27 @@ impl Dice for DeterministicDice {
 #[derive(Debug, Clone)]
 struct DiracDice {
     sides: u64,
-    _cache: HashMap<u64, Counter<u64, u64>>,
+    _cache: FxHashMap<u64, FxHashMap<u64, u64>>,
 }
 
 impl Dice for DiracDice {
-    fn multi_role(&mut self, amount: u64) -> Counter<u64, u64> {
+    fn multi_role(&mut self, amount: u64) -> FxHashMap<u64, u64> {
         self._cache
             .entry(amount)
             .or_insert_with(|| {
-                let mut result: Vec<u64> = vec![0];
+                let mut dice_rolls: Vec<u64> = vec![0];
                 for _ in 0..amount {
-                    result = result
+                    dice_rolls = dice_rolls
                         .into_iter()
                         .cartesian_product(1..=self.sides)
                         .map(|(a, b)| a + b)
                         .collect_vec();
                 }
-                result.into_iter().collect()
+                let mut dice_frequencies : FxHashMap<u64, u64> = FxHashMap::default();
+                for dice_roll in dice_rolls {
+                    *dice_frequencies.entry(dice_roll).or_default() += 1;
+                }
+                dice_frequencies
             })
             .clone()
     }
@@ -130,7 +135,7 @@ impl DiracDice {
     fn new(sides: u64) -> DiracDice {
         DiracDice {
             sides,
-            _cache: HashMap::new(),
+            _cache: FxHashMap::default(),
         }
     }
 }
@@ -142,7 +147,7 @@ fn solve(
     pos2: u64,
     dice: &mut dyn Dice,
 ) -> (u64, u64, u64, u64) {
-    let mut possible_pawns: Counter<(Pawn, Pawn), u64> = Counter::new();
+    let mut possible_pawns: FxHashMap<(Pawn, Pawn), u64> = FxHashMap::default();
     let pawn1 = Pawn::new(win_amount, track_length, pos1);
     let pawn2 = Pawn::new(win_amount, track_length, pos2);
     possible_pawns.insert((pawn1, pawn2), 1);
@@ -151,11 +156,11 @@ fn solve(
     let mut player1_loses_scores = 0;
     let mut player2_loses_scores = 0;
     while !possible_pawns.is_empty() {
-        let mut new_possible_pawns: Counter<(Pawn, Pawn), u64> = Counter::new();
+        let mut new_possible_pawns: FxHashMap<(Pawn, Pawn), u64> = FxHashMap::default();
         for ((pawn1, pawn2), pawns_amount) in possible_pawns.iter() {
             for (dice_result_p1, dice_result_p1_amount) in dice.multi_role(3).into_iter() {
                 let mut new_pawn1 = pawn1.clone();
-                if new_pawn1.update_pos_wins_p(*dice_result_p1) {
+                if new_pawn1.update_pos_wins_p(dice_result_p1) {
                     player1_wins += pawns_amount * dice_result_p1_amount;
                     player2_loses_scores += pawn2.score;
                     continue;
@@ -163,13 +168,12 @@ fn solve(
 
                 for (dice_result_p2, dice_result_p2_amount) in dice.multi_role(3).into_iter() {
                     let mut new_pawn2 = pawn2.clone();
-                    if new_pawn2.update_pos_wins_p(*dice_result_p2) {
+                    if new_pawn2.update_pos_wins_p(dice_result_p2) {
                         player2_wins +=
                             pawns_amount * dice_result_p2_amount * dice_result_p1_amount;
                         player1_loses_scores += new_pawn1.score;
                     } else {
-                        new_possible_pawns[&(new_pawn1.clone(), new_pawn2)] +=
-                            pawns_amount * dice_result_p2_amount * dice_result_p1_amount;
+                        *new_possible_pawns.entry((new_pawn1.clone(), new_pawn2)).or_default() += pawns_amount * dice_result_p2_amount * dice_result_p1_amount;
                     }
                 }
             }
