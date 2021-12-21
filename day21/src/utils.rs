@@ -54,9 +54,7 @@ pub fn with_measure<T: Debug>(title: &str, f: fn() -> T) -> T {
     let duration = start.elapsed();
     println!(
         "{} result: {:?} (elapsed time is: {:?})",
-        title,
-        res,
-        duration
+        title, res, duration
     );
     res
 }
