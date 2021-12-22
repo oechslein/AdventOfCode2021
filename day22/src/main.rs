@@ -29,6 +29,8 @@ use interval::Interval;
 
 use std::ops::RangeInclusive;
 
+use cached::proc_macro::cached;
+
 mod utils;
 
 ////////////////////////////////////////////////////////////////////////////////////
