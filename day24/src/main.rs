@@ -30,124 +30,30 @@ use std::fs;
 use fxhash::{FxHashMap, FxHashSet};
 
 mod utils;
-mod created_code;
+mod created_code_part1;
+mod created_code_part2;
 
 ////////////////////////////////////////////////////////////////////////////////////
 /// The main function prints out the results for part1 and part2
 /// AOC
 fn main() -> Result<(), Box<dyn error::Error>> {
     utils::with_measure("Part 1", || solve_part1("input.txt"));
-    utils::with_measure("Part 2", || solve_part2("test.txt"));
+    utils::with_measure("Part 2", || solve_part2("input.txt"));
     Ok(())
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-fn reverse_number(mut u: u64) -> u64 {
-    let mut r = 0;
-    while u != 0 {
-        r = r * 10 + u % 10;
-        u /= 10;
-    }
-    r
-}
-
-fn calc_part1_step_s_rec(
-    step: usize,
-    x: i64,
-    y: i64,
-    z: i64,
-    w: i64,
-    known_not_working: &mut FxHashSet<(usize, i64, i64, i64, i64)>,
-) -> Option<u64> {
-    for input in (1..=9).rev() {
-        let (x, y, z, w) = calc_part1_step_n(step, input, x, y, z, w);
-        if known_not_working.contains(&(step, x, y, z, w)) {
-            //println!("Already known to do not lead to a solution {:?}!", (step,x,y,z,w));
-            continue;
-        }
-        if step == 14 {
-            if z == 0 {
-                return Some(input as u64);
-            }
-        } else if let Some(n) = calc_part2_step_s_rec(step + 1, x, y, z, w, known_not_working) {
-            return Some(n * 10 + input as u64);
-        }
-        known_not_working.insert((step, x, y, z, w));
-    }
-    None
-}
-
-fn calc_part1_step_n(
-    step: usize,
-    input: i64,
-    x: i64,
-    y: i64,
-    z: i64,
-    w: i64,
-) -> (i64, i64, i64, i64) {
-    match step {
-        1 => calc_part1_step_01(input, x, y, z, w),
-        2 => calc_part1_step_02(input, x, y, z, w),
-        3 => calc_part1_step_03(input, x, y, z, w),
-        4 => calc_part1_step_04(input, x, y, z, w),
-        5 => calc_part1_step_05(input, x, y, z, w),
-        6 => calc_part1_step_06(input, x, y, z, w),
-        7 => calc_part1_step_07(input, x, y, z, w),
-        8 => calc_part1_step_08(input, x, y, z, w),
-        9 => calc_part1_step_09(input, x, y, z, w),
-        10 => calc_part1_step_10(input, x, y, z, w),
-        11 => calc_part1_step_11(input, x, y, z, w),
-        12 => calc_part1_step_12(input, x, y, z, w),
-        13 => calc_part1_step_13(input, x, y, z, w),
-        14 => calc_part1_step_14(input, x, y, z, w),
-        _ => unreachable!(),
-    }
-}
-
-fn calc_part2_step_s_rec(
-    step: usize,
-    x: i64,
-    y: i64,
-    z: i64,
-    w: i64,
-    known_not_working: &mut FxHashSet<(usize, i64, i64, i64, i64)>,
-) -> Option<u64> {
-    for input in 1..=9 {
-        let (x, y, z, w) = calc_part1_step_n(step, input, x, y, z, w);
-        if known_not_working.contains(&(step, x, y, z, w)) {
-            //println!("Already known to do not lead to a solution {:?}!", (step,x,y,z,w));
-            continue;
-        }
-        if step == 14 {
-            if z == 0 {
-                return Some(input as u64);
-            }
-        } else if let Some(n) = calc_part2_step_s_rec(step + 1, x, y, z, w, known_not_working) {
-            return Some(n * 10 + input as u64);
-        }
-        known_not_working.insert((step, x, y, z, w));
-    }
-    None
-}
-
-
 fn solve_part1(file_name: &str) -> i64 {
-    create_code(1, file_name);
+    fs::write("src/created_code_part1.rs", create_code(1, file_name));
 
-    created_code::calc_part1().unwrap()
+    created_code_part1::calc_part1().unwrap()
 }
 
 fn solve_part2(file_name: &str) -> i64 {
-    create_code(2, file_name);
+    fs::write("src/created_code_part2.rs", create_code(2, file_name));
 
-    /*
-    let mut known_not_working: FxHashSet<(usize, i64, i64, i64, i64)> = FxHashSet::default();
-    let result = calc_part2_step_s_rec(1, 0, 0, 0, 0, &mut known_not_working).unwrap();
-    reverse_number(result) as i64
-    */
-
-    created_code::calc_part2().unwrap()
+    created_code_part2::calc_part2().unwrap()
 }
 
 fn create_code(part: usize, file_name: &str) -> String {
@@ -187,7 +93,6 @@ fn create_code(part: usize, file_name: &str) -> String {
     result += "\n";
     result += &create_calls(part);
 
-
     result 
 }
 
@@ -212,7 +117,7 @@ fn create_calls(part: usize) -> String {
     result += "    let (x, y, z, w) = (0, 0, 0, 0);";
     result += &create_calls_rec(1, part == 1);
     result += "    None\n";
-    result += "}}\n";
+    result += "}\n";
     result
 }
 
@@ -229,7 +134,7 @@ fn create_calls_rec(step: usize, reverse: bool) -> String {
         range_str,
     );
     result += &format!(
-        "{}let (x, y, z, w) = calc_part1_step_{:#02}(input_{:#02}, x, y, z, w);\n",
+        "{}let (x, y, z, w) = calc_step_{:#02}(input_{:#02}, x, y, z, w);\n",
         " ".repeat(4 + 4 * step),
         step,
         step,
@@ -256,13 +161,13 @@ fn create_calls_rec(step: usize, reverse: bool) -> String {
             step,
         );
     }
-    result += &format!("{}}}", " ".repeat(4 * step));
+    result += &format!("{}}}\n", " ".repeat(4 * step));
     result
 }
 
 fn create_step_fns(lines: &[String], step: usize) -> (usize, String) {
     let mut result = String::new();
-    result += &format!("fn calc_part1_step_{:#02}(input: i64, mut x: i64, mut y: i64, mut z: i64, mut w: i64) -> (i64,i64,i64,i64) {{\n", step);
+    result += &format!("fn calc_step_{:#02}(input: i64, mut x: i64, mut y: i64, mut z: i64, mut w: i64) -> (i64,i64,i64,i64) {{\n", step);
     let mut input_seen = false;
     let mut last_index = 0;
     for (index, line) in lines.iter().enumerate() {
@@ -310,7 +215,7 @@ fn create_step_fns(lines: &[String], step: usize) -> (usize, String) {
         }
     }
     result += "    (x,y,z,w)\n";
-    result += "}}\n";
+    result += "}\n";
     (last_index, result)
 
 }
