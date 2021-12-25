@@ -203,7 +203,7 @@ impl World {
 
     fn move_into_rooms(
         &self,
-        visited: &mut FxHashSet<String>,
+        visited: &mut FxHashSet<World>,
         stack: &mut BinaryHeap<World>,
     ) -> bool {
         let mut moved_into_room = false;
@@ -224,17 +224,17 @@ impl World {
                     .rposition(|l| *l == Location::Empty)
                 {
                     let to_be_moved = self.hallway[i];
-                    let mut new_situation = self.clone();
-                    new_situation.rooms[room_door_index][r_i] = to_be_moved;
-                    new_situation.hallway[i] = Location::Empty;
-                    new_situation.score += to_be_moved.value()
+                    let mut new_world = self.clone();
+                    new_world.rooms[room_door_index][r_i] = to_be_moved;
+                    new_world.hallway[i] = Location::Empty;
+                    new_world.score += to_be_moved.value()
                         * (cmp::max(i, room_door_index * 2 + 2)
                             - cmp::min(i, room_door_index * 2 + 2)
                             + r_i
                             + 1);
-                    if !visited.contains(&new_situation.to_string()) {
-                        visited.insert(new_situation.to_string());
-                        stack.push(new_situation);
+                    if !visited.contains(&new_world) {
+                        visited.insert(new_world.clone());
+                        stack.push(new_world);
                     }
                     moved_into_room = true;
                 }
@@ -243,7 +243,7 @@ impl World {
         moved_into_room
     }
 
-    fn move_into_hallway(&self, visited: &mut FxHashSet<String>, stack: &mut BinaryHeap<World>) {
+    fn move_into_hallway(&self, visited: &mut FxHashSet<World>, stack: &mut BinaryHeap<World>) {
         let possible_end_pos = [0, 1, 3, 5, 7, 9, 10];
 
         for (sr_i, sr) in self.rooms.iter().enumerate().filter(|(i, sr)| {
@@ -255,14 +255,14 @@ impl World {
                 for i in possible_end_pos {
                     if self.is_hallway_empty(i, hallway_index, 0) {
                         let to_be_moved = sr[r_i];
-                        let mut new_situation = self.clone();
-                        new_situation.rooms[sr_i][r_i] = Location::Empty;
-                        new_situation.hallway[i] = to_be_moved;
-                        new_situation.score += to_be_moved.value()
+                        let mut new_world = self.clone();
+                        new_world.rooms[sr_i][r_i] = Location::Empty;
+                        new_world.hallway[i] = to_be_moved;
+                        new_world.score += to_be_moved.value()
                             * (cmp::max(i, hallway_index) - cmp::min(i, hallway_index) + r_i + 1);
-                        if !visited.contains(&new_situation.to_string()) {
-                            visited.insert(new_situation.to_string());
-                            stack.push(new_situation);
+                        if !visited.contains(&new_world) {
+                            visited.insert(new_world.clone());
+                            stack.push(new_world);
                         }
                     }
                 }
@@ -272,7 +272,7 @@ impl World {
 
     fn get_least_energy(self) -> Option<usize> {
         let mut visited = FxHashSet::default();
-        visited.insert(self.to_string());
+        visited.insert(self.clone());
         let mut stack = BinaryHeap::new();
         stack.push(self);
         while let Some(current) = stack.pop() {
