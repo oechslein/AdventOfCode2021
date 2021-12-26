@@ -7,6 +7,7 @@
 #![feature(const_option)]
 #![feature(type_alias_impl_trait)]
 #![feature(hash_drain_filter)]
+#![feature(generic_arg_infer)]
 
 extern crate test;
 
@@ -18,12 +19,12 @@ use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::hash::Hash;
 use std::{cmp, cmp::Ordering, fmt};
 
-use std::error;
 use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::BufRead;
-use std::ops::{Add, RangeFrom, SubAssign};
+use std::ops::{Add, Index, IndexMut, RangeFrom, SubAssign};
 use std::str::FromStr;
+use std::{error, mem};
 
 use fxhash::{FxHashMap, FxHashSet};
 
@@ -42,72 +43,146 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-enum Location {
-    Empty,
+type Location = Option<Amphipod>;
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+enum Amphipod {
     Amber,
     Bronze,
     Copper,
     Desert,
 }
 
-impl fmt::Display for Location {
+impl fmt::Display for Amphipod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.get_symbol())
     }
 }
 
-impl Location {
+impl Amphipod {
     fn get_symbol(&self) -> String {
         (match self {
-            Location::Amber => "A",
-            Location::Bronze => "B",
-            Location::Copper => "C",
-            Location::Desert => "D",
-            Location::Empty => ".",
+            Amphipod::Amber => "A",
+            Amphipod::Bronze => "B",
+            Amphipod::Copper => "C",
+            Amphipod::Desert => "D",
         })
         .to_string()
     }
 
     fn value(&self) -> usize {
         match self {
-            Location::Amber => 1,
-            Location::Bronze => 10,
-            Location::Copper => 100,
-            Location::Desert => 1000,
-            Location::Empty => 0,
+            Amphipod::Amber => 1,
+            Amphipod::Bronze => 10,
+            Amphipod::Copper => 100,
+            Amphipod::Desert => 1000,
         }
     }
 
-    fn door_index(&self) -> usize {
+    fn room_index(&self) -> usize {
         match self {
-            Location::Amber => 0,
-            Location::Bronze => 1,
-            Location::Copper => 2,
-            Location::Desert => 3,
-            Location::Empty => panic!("Tried to get invalid door_index."),
+            Amphipod::Amber => 0,
+            Amphipod::Bronze => 1,
+            Amphipod::Copper => 2,
+            Amphipod::Desert => 3,
         }
     }
 
-    fn by_door_index(i: usize) -> Self {
-        match i {
-            0 => Location::Amber,
-            1 => Location::Bronze,
-            2 => Location::Copper,
-            3 => Location::Desert,
-            _ => panic!("Tried to get invalid location (index: {}).", i),
+    fn costs(
+        &self,
+        from_hallway_index: usize,
+        to_hallway_index: usize,
+        room_location_index: usize,
+    ) -> usize {
+        self.value() * move_costs(from_hallway_index, to_hallway_index, room_location_index)
+    }
+
+    fn estimate_in_room(&self, from_room_index: usize, room_location_index: usize) -> usize {
+        let from_hallway_index = room_to_hallway_index(from_room_index);
+        let to_hallway_index = room_to_hallway_index(self.room_index());
+
+        self.value() * (move_costs(from_hallway_index, to_hallway_index, room_location_index) + room_location_index)
+    }
+
+    fn estimate_in_hallway(&self, from_hallway_index: usize, room_location_index: usize) -> usize {
+        let to_hallway_index = room_to_hallway_index(self.room_index());
+
+        self.value() * move_costs(from_hallway_index, to_hallway_index, room_location_index)
+    }
+}
+
+fn move_costs(
+    from_hallway_index: usize,
+    to_hallway_index: usize,
+    room_location_index: usize,
+) -> usize {
+    from_hallway_index.max(to_hallway_index) - from_hallway_index.min(to_hallway_index)
+        + room_location_index
+        + 1
+}
+
+#[derive(Clone)]
+struct Room<const SIZE: usize> {
+    locations: [Location; SIZE],
+}
+
+impl<const SIZE: usize> Hash for Room<SIZE> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.locations.hash(state);
+    }
+}
+
+impl<const SIZE: usize> Index<usize> for Room<SIZE> {
+    type Output = Location;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.locations[index]
+    }
+}
+
+impl<const SIZE: usize> IndexMut<usize> for Room<SIZE> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.locations[index]
+    }
+}
+
+impl<const SIZE: usize> Room<SIZE> {
+    fn new(locations: [Location; SIZE]) -> Room<SIZE> {
+        Room { locations }
+    }
+
+    fn iter(&self) -> std::slice::Iter<Option<Amphipod>> {
+        self.locations.iter()
+    }
+
+    fn finished(&self, room_index: usize) -> bool {
+        self.iter()
+            .all(|l| l.is_some() && l.as_ref().unwrap().room_index() == room_index)
+    }
+
+    fn estimate(&self, room_index: usize) -> usize {
+        if self.finished(room_index) {
+            0
+        } else {
+            self.iter()
+                .map(|l| {
+                    l.as_ref()
+                        .map_or(0, |a| a.estimate_in_room(room_index, SIZE - 1))
+                })
+                .sum()
         }
     }
 }
 
 #[derive(Clone)]
-struct World {
+struct World<const ROOM_SIZE: usize> {
     hallway: [Location; 11],
-    rooms: [[Location; 4]; 4],
+    rooms: [Room<ROOM_SIZE>; 4],
     score: usize,
+    estimate: usize,
 }
 
-impl Hash for World {
+impl<const ROOM_SIZE: usize> Hash for World<ROOM_SIZE> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         for i in 0..self.hallway.len() {
             self.hallway[i].hash(state);
@@ -119,147 +194,177 @@ impl Hash for World {
     }
 }
 
-impl fmt::Display for World {
+impl<const ROOM_SIZE: usize> fmt::Display for World<ROOM_SIZE> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "=============\nScore: {}\n#############\n#{}#\n###{}#{}#{}#{}###\n  #{}#{}#{}#{}#  \n  #{}#{}#{}#{}#  \n  #{}#{}#{}#{}#  \n  #########  ", 
-        self.score,
-        self.hallway.map(| l | l.get_symbol()).join(""),
-        self.rooms[0][0].get_symbol(),
-        self.rooms[1][0].get_symbol(),
-        self.rooms[2][0].get_symbol(),
-        self.rooms[3][0].get_symbol(),
-        self.rooms[0][1].get_symbol(),
-        self.rooms[1][1].get_symbol(),
-        self.rooms[2][1].get_symbol(),
-        self.rooms[3][1].get_symbol(),
-        self.rooms[0][2].get_symbol(),
-        self.rooms[1][2].get_symbol(),
-        self.rooms[2][2].get_symbol(),
-        self.rooms[3][2].get_symbol(),
-        self.rooms[0][3].get_symbol(),
-        self.rooms[1][3].get_symbol(),
-        self.rooms[2][3].get_symbol(),
-        self.rooms[3][3].get_symbol())
-    }
-}
-impl Ord for World {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.score.cmp(&self.score)
-    }
-}
-impl PartialOrd for World {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(other.score.cmp(&self.score))
-    }
-}
-impl PartialEq for World {
-    fn eq(&self, other: &Self) -> bool {
-        self.score == other.score
-    }
-}
-impl Eq for World {}
+        let _get_symbol = |loc: &Location| {
+            if let Some(a) = loc {
+                a.get_symbol()
+            } else {
+                ".".to_string()
+            }
+        };
+        let room_lines = (0..ROOM_SIZE)
+            .map(|i| {
+                "###".to_string() + &self.rooms.iter().map(|r| _get_symbol(&r[i])).join("#") + "###"
+            })
+            .join("\n");
+        let hallway_line = self.hallway.iter().map(|l| _get_symbol(l)).join("");
 
-impl World {
-    fn new(rooms: [[Location; 4]; 4]) -> Self {
-        World {
+        write!(
+            f,
+            "=============\nScore: {} Estimate: {}\n#############\n#{}#\n{}\n#############",
+            self.score, self.estimate, hallway_line, room_lines
+        )
+    }
+}
+
+// for BinaryHeap
+impl<const ROOM_SIZE: usize> Ord for World<ROOM_SIZE> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .score
+            .add(other.estimate)
+            .cmp(&self.score.add(self.estimate))
+    }
+}
+impl<const ROOM_SIZE: usize> PartialOrd for World<ROOM_SIZE> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(
+            other
+                .score
+                .add(other.estimate)
+                .cmp(&self.score.add(self.estimate)),
+        )
+    }
+}
+impl<const ROOM_SIZE: usize> PartialEq for World<ROOM_SIZE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.score == other.score && self.estimate == other.estimate
+    }
+}
+impl<const ROOM_SIZE: usize> Eq for World<ROOM_SIZE> {}
+
+impl<const ROOM_SIZE: usize> World<ROOM_SIZE> {
+    fn new(rooms: [Room<ROOM_SIZE>; 4]) -> Self {
+        let mut world = World {
             hallway: [
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
-                Location::Empty,
+                None, None, None, None, None, None, None, None, None, None, None,
             ],
             rooms,
             score: 0,
-        }
+            estimate: 0,
+        };
+        world.update_estimate();
+        world
     }
 
-    fn finished(&self) -> bool {
-        !self
+    fn update_estimate(&mut self) {
+        let hallway_estimate: usize = self
+            .hallway
+            .iter()
+            .enumerate()
+            .map(|(from_hallway_index, l)| {
+                l.as_ref()
+                    .map_or(0, |a| a.estimate_in_hallway(from_hallway_index, ROOM_SIZE))
+            })
+            .sum();
+        let into_correct_rooms_estimate: usize = self
             .rooms
             .iter()
             .enumerate()
-            .any(|(i, s)| s.iter().any(|l| *l != Location::by_door_index(i))) // TODO change not using by_door_index?
+            .map(|(from_room_index, r)| ROOM_SIZE * r.estimate(from_room_index))
+            .sum();
+        self.estimate = hallway_estimate + into_correct_rooms_estimate;
     }
 
-    fn is_hallway_empty(&self, mut from: usize, mut to: usize, distance: usize) -> bool {
+    fn finished(&self) -> bool {
+        self.rooms
+            .iter()
+            .enumerate()
+            .all(|(room_index, room)| room.finished(room_index))
+    }
+
+    fn is_hallway_empty(&self, from: usize, to: usize, skip_from: bool) -> bool {
+        let distance = if skip_from { 1 } else { 0 };
         if from > to {
-            let t = to;
-            to = from - distance;
-            from = t;
+            (to..=from - distance)
+                .into_iter()
+                .all(|i| self.hallway[i].is_none())
         } else {
-            from += distance;
+            (from + distance..=to)
+                .into_iter()
+                .all(|i| self.hallway[i].is_none())
         }
-        !(from..=to)
-            .into_iter()
-            .any(|i| self.hallway[i] != Location::Empty)
+    }
+
+    fn _not_empty_but_in_wrong_room(l: &Location, room_index: usize) -> bool {
+        l.as_ref()
+            .map_or(false, |a: &Amphipod| a.room_index() != room_index)
     }
 
     fn move_into_rooms(
         &self,
-        visited: &mut FxHashSet<World>,
-        stack: &mut BinaryHeap<World>,
+        visited: &mut FxHashSet<World<ROOM_SIZE>>,
+        stack: &mut BinaryHeap<World<ROOM_SIZE>>,
     ) -> bool {
         let mut moved_into_room = false;
-        for (i, a) in self
-            .hallway
-            .iter()
-            .enumerate()
-            .filter(|(_, a)| *(*a) != Location::Empty)
-        {
-            let room_door_index = a.door_index();
-            if self.is_hallway_empty(i, room_door_index * 2 + 2, 1)
-                && !self.rooms[room_door_index].iter().any(|l| {
-                    *l != Location::by_door_index(room_door_index) && *l != Location::Empty
-                })
-            {
-                if let Some(r_i) = self.rooms[room_door_index]
-                    .iter()
-                    .rposition(|l| *l == Location::Empty)
+        for (curr_hallway_index, l) in self.hallway.iter().enumerate() {
+            if let Some(a) = l {
+                let room_index = a.room_index();
+                let to_hallway_index = room_to_hallway_index(room_index);
+                if self.is_hallway_empty(curr_hallway_index, to_hallway_index, true)
+                    && self.rooms[room_index]
+                        .iter()
+                        .all(|l| !World::<ROOM_SIZE>::_not_empty_but_in_wrong_room(l, room_index))
                 {
-                    let to_be_moved = self.hallway[i];
-                    let mut new_world = self.clone();
-                    new_world.rooms[room_door_index][r_i] = to_be_moved;
-                    new_world.hallway[i] = Location::Empty;
-                    new_world.score += to_be_moved.value()
-                        * (cmp::max(i, room_door_index * 2 + 2)
-                            - cmp::min(i, room_door_index * 2 + 2)
-                            + r_i
-                            + 1);
-                    if !visited.contains(&new_world) {
-                        visited.insert(new_world.clone());
-                        stack.push(new_world);
+                    if let Some(room_location_index) =
+                        self.rooms[room_index].iter().rposition(|l| l.is_none())
+                    {
+                        let mut new_world = self.clone();
+                        mem::swap(
+                            &mut new_world.hallway[curr_hallway_index],
+                            &mut new_world.rooms[room_index][room_location_index],
+                        );
+                        new_world.score +=
+                            a.costs(curr_hallway_index, to_hallway_index, room_location_index);
+                        new_world.update_estimate();
+                        if !visited.contains(&new_world) {
+                            visited.insert(new_world.clone());
+                            stack.push(new_world);
+                        }
+                        moved_into_room = true;
                     }
-                    moved_into_room = true;
                 }
             }
         }
         moved_into_room
     }
 
-    fn move_into_hallway(&self, visited: &mut FxHashSet<World>, stack: &mut BinaryHeap<World>) {
-        let possible_end_pos = [0, 1, 3, 5, 7, 9, 10];
-
-        for (sr_i, sr) in self.rooms.iter().enumerate().filter(|(i, sr)| {
-            sr.iter()
-                .any(|l| *l != Location::Empty && *l != Location::by_door_index(*i))
+    fn move_into_hallway(
+        &self,
+        visited: &mut FxHashSet<World<ROOM_SIZE>>,
+        stack: &mut BinaryHeap<World<ROOM_SIZE>>,
+    ) {
+        for (from_room_index, room) in self.rooms.iter().enumerate().filter(|(room_index, room)| {
+            room.iter()
+                .any(|l| World::<ROOM_SIZE>::_not_empty_but_in_wrong_room(l, *room_index))
         }) {
-            if let Some(r_i) = sr.iter().position(|a| *a != Location::Empty) {
-                let hallway_index = sr_i * 2 + 2;
-                for i in possible_end_pos {
-                    if self.is_hallway_empty(i, hallway_index, 0) {
-                        let to_be_moved = sr[r_i];
+            if let Some(room_location_index) = room.iter().position(|a| a.is_some()) {
+                static POSSIBLE_HALLWAY_INDEXES: [usize; 7] = [0, 1, 3, 5, 7, 9, 10];
+                let from_hallway_index = room_to_hallway_index(from_room_index);
+                for to_hallway_index in POSSIBLE_HALLWAY_INDEXES {
+                    if self.is_hallway_empty(to_hallway_index, from_hallway_index, false) {
+                        let to_be_moved = room[room_location_index].as_ref().unwrap();
                         let mut new_world = self.clone();
-                        new_world.rooms[sr_i][r_i] = Location::Empty;
-                        new_world.hallway[i] = to_be_moved;
-                        new_world.score += to_be_moved.value()
-                            * (cmp::max(i, hallway_index) - cmp::min(i, hallway_index) + r_i + 1);
+                        mem::swap(
+                            &mut new_world.rooms[from_room_index][room_location_index],
+                            &mut new_world.hallway[to_hallway_index],
+                        );
+                        new_world.score += to_be_moved.costs(
+                            from_hallway_index,
+                            to_hallway_index,
+                            room_location_index,
+                        );
                         if !visited.contains(&new_world) {
                             visited.insert(new_world.clone());
                             stack.push(new_world);
@@ -271,6 +376,7 @@ impl World {
     }
 
     fn get_least_energy(self) -> Option<usize> {
+        println!("{}", self);
         let mut visited = FxHashSet::default();
         visited.insert(self.clone());
         let mut stack = BinaryHeap::new();
@@ -289,6 +395,10 @@ impl World {
     }
 }
 
+fn room_to_hallway_index(room_index: usize) -> usize {
+    room_index * 2 + 2
+}
+
 fn get_range(from: usize, to: usize) -> Range<usize> {
     // from is own position, exclude it
     if from < to {
@@ -299,62 +409,42 @@ fn get_range(from: usize, to: usize) -> Range<usize> {
     }
 }
 
-fn solve_part1(file_name: &str) -> usize {
+fn solve_part1(_file_name: &str) -> usize {
     let s = World::new([
-        [
-            Location::Copper,
-            Location::Bronze,
-            Location::Amber,
-            Location::Amber,
-        ],
-        [
-            Location::Desert,
-            Location::Amber,
-            Location::Bronze,
-            Location::Bronze,
-        ],
-        [
-            Location::Amber,
-            Location::Desert,
-            Location::Copper,
-            Location::Copper,
-        ],
-        [
-            Location::Bronze,
-            Location::Copper,
-            Location::Desert,
-            Location::Desert,
-        ],
+        Room::new([Some(Amphipod::Copper), Some(Amphipod::Bronze)]),
+        Room::new([Some(Amphipod::Desert), Some(Amphipod::Amber)]),
+        Room::new([Some(Amphipod::Amber), Some(Amphipod::Desert)]),
+        Room::new([Some(Amphipod::Bronze), Some(Amphipod::Copper)]),
     ]);
     s.get_least_energy().unwrap()
 }
 
-fn solve_part2(file_name: &str) -> usize {
+fn solve_part2(_file_name: &str) -> usize {
     let s = World::new([
-        [
-            Location::Copper,
-            Location::Desert,
-            Location::Desert,
-            Location::Bronze,
-        ],
-        [
-            Location::Desert,
-            Location::Copper,
-            Location::Bronze,
-            Location::Amber,
-        ],
-        [
-            Location::Amber,
-            Location::Bronze,
-            Location::Amber,
-            Location::Desert,
-        ],
-        [
-            Location::Bronze,
-            Location::Amber,
-            Location::Copper,
-            Location::Copper,
-        ],
+        Room::new([
+            Some(Amphipod::Copper),
+            Some(Amphipod::Desert),
+            Some(Amphipod::Desert),
+            Some(Amphipod::Bronze),
+        ]),
+        Room::new([
+            Some(Amphipod::Desert),
+            Some(Amphipod::Copper),
+            Some(Amphipod::Bronze),
+            Some(Amphipod::Amber),
+        ]),
+        Room::new([
+            Some(Amphipod::Amber),
+            Some(Amphipod::Bronze),
+            Some(Amphipod::Amber),
+            Some(Amphipod::Desert),
+        ]),
+        Room::new([
+            Some(Amphipod::Bronze),
+            Some(Amphipod::Amber),
+            Some(Amphipod::Copper),
+            Some(Amphipod::Copper),
+        ]),
     ]);
     s.get_least_energy().unwrap()
 }
@@ -370,22 +460,22 @@ mod tests {
 
     #[test]
     fn test1() {
-        assert_eq!(solve_part1("test.txt"), 590784);
+        assert_eq!(solve_part1("test.txt"), 13556);
     }
 
     #[test]
     fn verify1() {
-        assert_eq!(solve_part1("input.txt"), 576028);
+        assert_eq!(solve_part1("input.txt"), 13556);
     }
 
     #[test]
     fn test2() {
-        assert_eq!(solve_part2("test2.txt"), 2758514936282235);
+        assert_eq!(solve_part2("test2.txt"), 54200);
     }
 
     #[test]
     fn verify2() {
-        assert_eq!(solve_part2("input.txt"), 1387966280636636);
+        assert_eq!(solve_part2("input.txt"), 54200);
     }
 
     #[bench]

@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#cached = "0.26.2"          # Caching structures and simplified function memoization
+cached = "0.26.2"          # Caching structures and simplified function memoization
 itertools = "0.10.1"       # Extra iterator adaptors, iterator methods, free functions, and macros.
 #array2d = "0.2.1"
 #glam = "0.20.1"
